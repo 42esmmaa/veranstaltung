@@ -1,21 +1,31 @@
 # Veranstaltungs-API
 
-Kleine Hono-API für Veranstaltungen mit PostgreSQL und Drizzle ORM.
+Hono-Appserver mit TypeScript. Die API wird schrittweise gemäß den Issues im GitHub-Projektplan aufgebaut.
 
-## Datenmodell (erster Schritt)
+## Voraussetzungen
 
-- `Veranstaltung`: Titel, Datum, Kategorie, Schlagwörter, Preis und Veranstalter-ID.
-- `Ort`: pro Veranstaltung genau ein Ort (eindeutige `veranstaltung_id`).
-- `Ticket`: mehrere Ticketarten pro Veranstaltung.
-- `veranstalter_id` speichert die `sub`-Kennung aus dem Login-Token. So kann die API bei Änderungen die Veranstaltung dem eingeloggten User zuordnen.
+- Node.js `^26.13.0`
+- pnpm `12.19.0` (im Projekt festgelegt)
 
-Die Kategorien sind zunächst `KONZERT`, `SPORT`, `THEATER`, `WORKSHOP` und `SONSTIGES`.
-
-## Start
+## Lokal starten
 
 ```powershell
 pnpm install
+Copy-Item .env.example .env
 pnpm dev
 ```
 
-Der erste Server stellt `GET /` und `GET /health` bereit. Datenbankverbindung und Migrationen kommen als nächster Schritt.
+Der Watch-Modus startet den Server nach Änderungen neu. Für den Start ohne Watch-Modus:
+
+```powershell
+pnpm start
+```
+
+`PORT` wird aus `.env` gelesen und ist standardmäßig `3000`. Die Datei `.env` enthält nur lokale Einstellungen und wird nicht eingecheckt.
+
+## Erste Endpunkte
+
+- `GET /` gibt eine kurze Statusmeldung zurück.
+- `GET /health` gibt `{"status":"ok"}` zurück.
+
+Die Datenbankintegration und das Veranstaltungsmodell mit Prisma/PostgreSQL sind im separaten Issue #3 geplant. Zod, Keycloak, GraphQL, Tests, Codeanalyse und weitere Abgabeanforderungen haben eigene Issues.
