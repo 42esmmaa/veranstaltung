@@ -1,4 +1,4 @@
-import { pgSchema, integer, text, date, numeric, jsonb, timestamp, unique, index, boolean } from 'drizzle-orm/pg-core';
+import { pgSchema, integer, text, date, numeric, jsonb, timestamp, unique, index, boolean, check, foreignKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const veranstaltungSchema = pgSchema('veranstaltung');
@@ -18,12 +18,13 @@ export const veranstaltung = veranstaltungSchema.table('veranstaltung', {
   kategorie: kategorieEnum().notNull(),
   schlagwoerter: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   preis: numeric({ precision: 8, scale: 2 }).notNull(),
-  // OIDC/JWT subject (sub) des eingeloggten Users, kein separates User-Konto in der DB.
+  // User-ID aus dem verifizierten OIDC-Token (claim `sub`).
   veranstalterId: text('veranstalter_id').notNull(),
   erstellt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   aktualisiert: timestamp({ withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('veranstaltung_veranstalter_id_idx').on(table.veranstalterId),
+  check('veranstaltung_preis_check', sql`${table.preis} >= 0`),
 ]);
 
 export const ort = veranstaltungSchema.table('ort', {
@@ -32,10 +33,13 @@ export const ort = veranstaltungSchema.table('ort', {
   strasse: text().notNull(),
   plz: text().notNull(),
   stadt: text().notNull(),
-  veranstaltungId: integer('veranstaltung_id')
-    .notNull()
-    .references(() => veranstaltung.id, { onDelete: 'cascade' }),
+  veranstaltungId: integer('veranstaltung_id').notNull(),
 }, (table) => [
+  foreignKey({
+    columns: [table.veranstaltungId],
+    foreignColumns: [veranstaltung.id],
+    name: 'ort_veranstaltung_id_fkey',
+  }).onDelete('cascade'),
   unique('ort_veranstaltung_id_key').on(table.veranstaltungId),
 ]);
 
@@ -45,9 +49,14 @@ export const ticket = veranstaltungSchema.table('ticket', {
   preis: numeric({ precision: 8, scale: 2 }).notNull(),
   kontingent: integer().notNull(),
   aktiv: boolean().default(true).notNull(),
-  veranstaltungId: integer('veranstaltung_id')
-    .notNull()
-    .references(() => veranstaltung.id, { onDelete: 'cascade' }),
+  veranstaltungId: integer('veranstaltung_id').notNull(),
 }, (table) => [
+  foreignKey({
+    columns: [table.veranstaltungId],
+    foreignColumns: [veranstaltung.id],
+    name: 'ticket_veranstaltung_id_fkey',
+  }).onDelete('cascade'),
   index('ticket_veranstaltung_id_idx').on(table.veranstaltungId),
+  check('ticket_preis_check', sql`${table.preis} >= 0`),
+  check('ticket_kontingent_check', sql`${table.kontingent} >= 0`),
 ]);
