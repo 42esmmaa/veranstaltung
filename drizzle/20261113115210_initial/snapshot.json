@@ -1,0 +1,659 @@
+{
+  "type": "base",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "85053fd0-2fc4-475e-b37e-d12eb4d27b4e",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_schema",
+      "statementTarget": [
+        "schema",
+        "veranstaltung"
+      ],
+      "writes": [
+        "s|sch|veranstaltung",
+        "n|sch|veranstaltung",
+        "e|sch|veranstaltung"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "veranstaltung",
+        "kategorie"
+      ],
+      "writes": [
+        "s|enum|veranstaltung.kategorie",
+        "n|enum|veranstaltung.kategorie",
+        "e|enum|veranstaltung.kategorie",
+        "n|type|veranstaltung.kategorie"
+      ],
+      "reads": [
+        "n|sch|veranstaltung"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "veranstaltung",
+        "ort"
+      ],
+      "writes": [
+        "s|tbl|veranstaltung.ort",
+        "n|tbl|veranstaltung.ort",
+        "e|tbl|veranstaltung.ort",
+        "n|rel|veranstaltung.ort",
+        "n|type|veranstaltung.ort",
+        "n|rel|veranstaltung.ort_pkey",
+        "n|rel|veranstaltung.ort_veranstaltung_id_key"
+      ],
+      "reads": [
+        "n|sch|veranstaltung"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "veranstaltung",
+        "ticket"
+      ],
+      "writes": [
+        "s|tbl|veranstaltung.ticket",
+        "n|tbl|veranstaltung.ticket",
+        "e|tbl|veranstaltung.ticket",
+        "n|rel|veranstaltung.ticket",
+        "n|type|veranstaltung.ticket",
+        "n|rel|veranstaltung.ticket_pkey"
+      ],
+      "reads": [
+        "n|sch|veranstaltung"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "veranstaltung",
+        "veranstaltung"
+      ],
+      "writes": [
+        "s|tbl|veranstaltung.veranstaltung",
+        "n|tbl|veranstaltung.veranstaltung",
+        "e|tbl|veranstaltung.veranstaltung",
+        "n|rel|veranstaltung.veranstaltung",
+        "n|type|veranstaltung.veranstaltung",
+        "n|rel|veranstaltung.veranstaltung_pkey"
+      ],
+      "reads": [
+        "n|sch|veranstaltung",
+        "n|enum|veranstaltung.kategorie"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "veranstaltung",
+        "ticket",
+        "ticket_veranstaltung_id_idx"
+      ],
+      "writes": [
+        "s|idx|veranstaltung.ticket_veranstaltung_id_idx",
+        "n|idx|veranstaltung.ticket_veranstaltung_id_idx",
+        "e|idx|veranstaltung.ticket_veranstaltung_id_idx",
+        "n|rel|veranstaltung.ticket_veranstaltung_id_idx"
+      ],
+      "reads": [
+        "n|tbl|veranstaltung.ticket",
+        "n|sch|veranstaltung",
+        "n|col|veranstaltung.ticket.veranstaltung_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "veranstaltung",
+        "veranstaltung",
+        "veranstaltung_veranstalter_id_idx"
+      ],
+      "writes": [
+        "s|idx|veranstaltung.veranstaltung_veranstalter_id_idx",
+        "n|idx|veranstaltung.veranstaltung_veranstalter_id_idx",
+        "e|idx|veranstaltung.veranstaltung_veranstalter_id_idx",
+        "n|rel|veranstaltung.veranstaltung_veranstalter_id_idx"
+      ],
+      "reads": [
+        "n|tbl|veranstaltung.veranstaltung",
+        "n|sch|veranstaltung",
+        "n|col|veranstaltung.veranstaltung.veranstalter_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "veranstaltung",
+        "ort"
+      ],
+      "writes": [
+        "s|fk|veranstaltung.ort.ort_veranstaltung_id_fkey",
+        "n|fk|veranstaltung.ort.ort_veranstaltung_id_fkey",
+        "e|fk|veranstaltung.ort.ort_veranstaltung_id_fkey",
+        "n|con|veranstaltung.ort.ort_veranstaltung_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|veranstaltung.ort",
+        "n|sch|veranstaltung",
+        "n|tbl|veranstaltung.veranstaltung",
+        "n|sch|veranstaltung",
+        "n|col|veranstaltung.ort.veranstaltung_id",
+        "n|col|veranstaltung.veranstaltung.id",
+        "e|uniqueness|veranstaltung.veranstaltung.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "veranstaltung",
+        "ticket"
+      ],
+      "writes": [
+        "s|fk|veranstaltung.ticket.ticket_veranstaltung_id_fkey",
+        "n|fk|veranstaltung.ticket.ticket_veranstaltung_id_fkey",
+        "e|fk|veranstaltung.ticket.ticket_veranstaltung_id_fkey",
+        "n|con|veranstaltung.ticket.ticket_veranstaltung_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|veranstaltung.ticket",
+        "n|sch|veranstaltung",
+        "n|tbl|veranstaltung.veranstaltung",
+        "n|sch|veranstaltung",
+        "n|col|veranstaltung.ticket.veranstaltung_id",
+        "n|col|veranstaltung.veranstaltung.id",
+        "e|uniqueness|veranstaltung.veranstaltung.id"
+      ]
+    }
+  ],
+  "ddl": [
+    {
+      "name": "veranstaltung",
+      "entityType": "schemas"
+    },
+    {
+      "schema": "veranstaltung",
+      "name": "ort",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "veranstaltung",
+      "name": "ticket",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "veranstaltung",
+      "name": "veranstaltung",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "veranstaltung",
+      "name": "kategorie",
+      "values": [
+        "KONZERT",
+        "SPORT",
+        "THEATER",
+        "WORKSHOP",
+        "SONSTIGES"
+      ],
+      "entityType": "enums"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "ort_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "strasse",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "plz",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "stadt",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "veranstaltung_id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "ticket_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "bezeichnung",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "preis",
+      "type": "numeric(8,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "kontingent",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "aktiv",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "veranstaltung_id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "veranstaltung_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "titel",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "datum",
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "kategorie",
+      "type": "kategorie",
+      "typeSchema": "veranstaltung",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "schlagwoerter",
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'[]'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "preis",
+      "type": "numeric(8,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "veranstalter_id",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "erstellt",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "aktualisiert",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "ticket_veranstaltung_id_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "veranstaltung_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "veranstaltung_veranstalter_id_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "veranstalter_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "ort_veranstaltung_id_fkey",
+      "nameExplicit": true,
+      "columns": [
+        "veranstaltung_id"
+      ],
+      "schemaTo": "veranstaltung",
+      "tableTo": "veranstaltung",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "ticket_veranstaltung_id_fkey",
+      "nameExplicit": true,
+      "columns": [
+        "veranstaltung_id"
+      ],
+      "schemaTo": "veranstaltung",
+      "tableTo": "veranstaltung",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "ort_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "ticket_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "veranstaltung_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ort",
+      "name": "ort_veranstaltung_id_key",
+      "nameExplicit": true,
+      "columns": [
+        "veranstaltung_id"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "ticket_preis_check",
+      "value": "\"preis\" >= 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "ticket",
+      "name": "ticket_kontingent_check",
+      "value": "\"kontingent\" >= 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "veranstaltung",
+      "table": "veranstaltung",
+      "name": "veranstaltung_preis_check",
+      "value": "\"preis\" >= 0",
+      "entityType": "checks"
+    }
+  ]
+}
