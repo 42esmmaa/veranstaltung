@@ -1,4 +1,4 @@
-import { pgSchema, integer, text, date, numeric, jsonb, timestamp, unique, index, boolean, check, foreignKey } from 'drizzle-orm/pg-core';
+import { pgSchema, integer, text, numeric, jsonb, timestamp, unique, index, boolean, check, foreignKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const veranstaltungSchema = pgSchema('veranstaltung');
@@ -14,17 +14,18 @@ export const kategorieEnum = veranstaltungSchema.enum('kategorie', [
 export const veranstaltung = veranstaltungSchema.table('veranstaltung', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   titel: text().notNull(),
-  datum: date().notNull(),
+  datum: timestamp({ withTimezone: true }).notNull(),
   kategorie: kategorieEnum().notNull(),
   schlagwoerter: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   preis: numeric({ precision: 8, scale: 2 }).notNull(),
   // User-ID aus dem verifizierten OIDC-Token (claim `sub`).
   veranstalterId: text('veranstalter_id').notNull(),
   erstellt: timestamp({ withTimezone: true }).defaultNow().notNull(),
-  aktualisiert: timestamp({ withTimezone: true }).defaultNow().notNull(),
+  aktualisiert: timestamp({ withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [
   index('veranstaltung_veranstalter_id_idx').on(table.veranstalterId),
   check('veranstaltung_preis_check', sql`${table.preis} >= 0`),
+  check('veranstaltung_schlagwoerter_check', sql`jsonb_typeof(${table.schlagwoerter}) = 'array' AND NOT jsonb_path_exists(${table.schlagwoerter}, 'strict $[*] ? (@.type() != "string")')`),
 ]);
 
 export const ort = veranstaltungSchema.table('ort', {

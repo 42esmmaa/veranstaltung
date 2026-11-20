@@ -1,0 +1,68 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "42ffa6c7-07b0-4a6a-b7af-f2e294f119d0",
+  "prevIds": [
+    "85053fd0-2fc4-475e-b37e-d12eb4d27b4e"
+  ],
+  "footprints": [
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "veranstaltung",
+        "veranstaltung",
+        "datum"
+      ],
+      "writes": [
+        "s|colprop|veranstaltung.veranstaltung.datum.type",
+        "s|colprop|veranstaltung.veranstaltung.datum.default"
+      ],
+      "reads": [
+        "n|tbl|veranstaltung.veranstaltung",
+        "n|sch|veranstaltung",
+        "n|col|veranstaltung.veranstaltung.datum"
+      ],
+      "sqlHash": "ebf85d99a20c5e64"
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "veranstaltung",
+        "veranstaltung"
+      ],
+      "writes": [
+        "s|ck|veranstaltung.veranstaltung.veranstaltung_schlagwoerter_check",
+        "n|ck|veranstaltung.veranstaltung.veranstaltung_schlagwoerter_check",
+        "e|ck|veranstaltung.veranstaltung.veranstaltung_schlagwoerter_check",
+        "n|con|veranstaltung.veranstaltung.veranstaltung_schlagwoerter_check"
+      ],
+      "reads": [
+        "n|tbl|veranstaltung.veranstaltung",
+        "n|sch|veranstaltung",
+        "n|col|veranstaltung.veranstaltung.schlagwoerter"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "veranstaltung",
+        "table": "veranstaltung",
+        "name": "veranstaltung_schlagwoerter_check",
+        "value": "jsonb_typeof(\"schlagwoerter\") = 'array' AND NOT jsonb_path_exists(\"schlagwoerter\", 'strict $[*] ? (@.type() != \"string\")')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"veranstaltung\",\"veranstaltung\",\"datum\"]",
+      "set": {
+        "type": "timestamp with time zone"
+      }
+    }
+  ]
+}

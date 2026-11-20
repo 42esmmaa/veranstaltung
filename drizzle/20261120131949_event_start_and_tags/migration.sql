@@ -1,0 +1,2 @@
+ALTER TABLE "veranstaltung"."veranstaltung" ALTER COLUMN "datum" SET DATA TYPE timestamp with time zone USING ("datum"::timestamp AT TIME ZONE 'UTC');--> statement-breakpoint
+ALTER TABLE "veranstaltung"."veranstaltung" ADD CONSTRAINT "veranstaltung_schlagwoerter_check" CHECK (jsonb_typeof("schlagwoerter") = 'array' AND NOT jsonb_path_exists("schlagwoerter", 'strict $[*] ? (@.type() != "string")'));

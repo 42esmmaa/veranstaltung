@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { PoolConfig } from 'pg';
+import { relations } from './relations.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -7,4 +8,4 @@ if (!databaseUrl) {
 }
 
 const connection: PoolConfig = { connectionString: databaseUrl };
-export const db = drizzle({ connection });
+export const db = drizzle({ connection, relations });
