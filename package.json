@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
-    "start": "node --env-file-if-exists=.env --import tsx src/index.ts",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/unit.test.ts",
+    "test:db": "node --import tsx --test test/database.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
