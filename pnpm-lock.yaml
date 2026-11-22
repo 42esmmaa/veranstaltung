@@ -190,6 +190,9 @@ importers:
       pg:
         specifier: 8.23.1
         version: 8.23.1
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
     devDependencies:
       '@types/node':
         specifier: ^24.5.0
@@ -631,6 +634,9 @@ packages:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
 
+  zod@4.1.12:
+    resolution: {integrity: sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ==}
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -828,3 +834,5 @@ snapshots:
   undici-types@7.24.6: {}
 
   xtend@4.0.2: {}
+
+  zod@4.1.12: {}

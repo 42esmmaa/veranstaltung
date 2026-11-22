@@ -19,7 +19,8 @@
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "^4.13.18",
     "pg": "8.23.1",
-    "dotenv": "18.0.9"
+    "dotenv": "18.0.9",
+    "zod": "4.1.12"
   },
   "devDependencies": {
     "@types/node": "^24.5.0",
