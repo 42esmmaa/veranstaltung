@@ -50,7 +50,9 @@ Mitternacht UTC übernommen. Der Audit-Wert `aktualisiert` wird bei Drizzle-Upda
 
 Lesezugriffe sind öffentlich. Schreibzugriffe benötigen `Authorization: Bearer <access-token>`.
 Setze dazu `OIDC_ISSUER`, `OIDC_AUDIENCE` und `OIDC_JWKS_URL` gemeinsam.
-Der Verifier erwartet RS256 und einen HTTPS-JWKS-Endpunkt. Die Veranstalter-ID stammt aus `sub`.
+Der Verifier erwartet ein Keycloak-Access-Token mit RS256, API-Audience und der Realm-Rolle
+`veranstalter`. Die Veranstalter-ID stammt aus `sub`. In regulären Umgebungen verwenden
+Issuer und JWKS HTTPS.
 Ohne OIDC-Konfiguration sind Schreibzugriffe deaktiviert.
 
 | Methode | URL | Erfolg |
@@ -88,6 +90,69 @@ Zeitpunkte werden in UTC ausgegeben. Preise bleiben Dezimalstrings.
 Fehler liefern JSON wie `{"error":"Ressource nicht gefunden."}`.
 Validierungsfehler enthalten pro Feld einen Eintrag in `details`, zum Beispiel
 `{"error":"Ungültige Eingaben.","details":[{"feld":"preis","nachricht":"Dezimalstring mit bis zu zwei Nachkommastellen erwartet."}]}`.
-Ungültige Eingaben liefern 400, fehlende oder ungültige Tokens 401 und fehlende oder
+Ungültige Eingaben liefern 400, fehlende oder ungültige Tokens 401, eine fehlende
+Veranstalterrolle 403 und fehlende oder
 fremde Ressourcen bei Schreibzugriffen 404. Zu große Bodies liefern 413 und ein
 falscher Content-Type liefert 415. DELETE liefert bei Erfolg keinen Body.
+
+## Lokal mit Keycloak anmelden
+
+Trage eigene lokale Zugangsdaten für `KC_BOOTSTRAP_ADMIN_USERNAME` und
+`KC_BOOTSTRAP_ADMIN_PASSWORD` in deine ignorierte `.env` ein. Ergänze außerdem:
+
+```dotenv
+OIDC_ISSUER=http://127.0.0.1:8080/realms/veranstaltung
+OIDC_AUDIENCE=veranstaltungs-api
+OIDC_JWKS_URL=http://127.0.0.1:8080/realms/veranstaltung/protocol/openid-connect/certs
+OIDC_ALLOW_LOOPBACK_HTTP=true
+```
+
+```powershell
+docker compose --profile oidc up -d postgres keycloak
+pnpm db:migrate
+pnpm dev
+```
+
+Warte, bis die Keycloak-Konsole unter `http://127.0.0.1:8080/admin/` erreichbar ist.
+Melde dich als lokaler Admin an, wähle den Realm **veranstaltung** und lege zwei
+Testnutzer an. Setze unter **Credentials** je ein lokales Passwort und weise
+beiden unter **Role mapping** die Realm-Rolle **veranstalter** zu.
+Für den 403-Fall kannst du einen weiteren Nutzer ohne diese Rolle anlegen.
+Keycloak speichert den Realm und die Nutzer im eigenen Volume. Beim Neustart
+wird ein vorhandener Realm nicht erneut importiert.
+
+In einer zweiten PowerShell kannst du über den OAuth-2-Gerätefluss ein Access-Token holen.
+Der Client `veranstaltungs-cli` ist öffentlich und benötigt kein Client-Secret.
+
+```powershell
+$oidc = 'http://127.0.0.1:8080/realms/veranstaltung/protocol/openid-connect'
+$device = Invoke-RestMethod -Method Post -Uri "$oidc/auth/device" -Body @{
+  client_id = 'veranstaltungs-cli'
+}
+Start-Process $device.verification_uri_complete
+```
+
+Melde dich im Browser als Testnutzer an und bestätige den angezeigten Code.
+Warte bei `authorization_pending` mindestens `$device.interval` Sekunden vor dem nächsten Versuch.
+
+```powershell
+$token = Invoke-RestMethod -Method Post -Uri "$oidc/token" -Body @{
+  grant_type = 'urn:ietf:params:oauth:grant-type:device_code'
+  client_id = 'veranstaltungs-cli'
+  device_code = $device.device_code
+}
+$headers = @{ Authorization = "Bearer $($token.access_token)" }
+$event = Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/veranstaltungen' `
+  -Headers $headers -ContentType 'application/json' `
+  -Body '{"titel":"Keycloak-Test","datum":"2027-02-01T19:00:00+01:00","kategorie":"KONZERT","preis":"12.50"}'
+```
+
+Wiederhole den Gerätefluss als zweiter Veranstalter, bei Bedarf in einem privaten
+Browserfenster. Ein `DELETE /veranstaltungen/$($event.id)` mit dessen Token muss
+`404` liefern. Mit dem ursprünglichen Token liefert derselbe Aufruf `204`.
+Ohne Token liefert er `401`.
+
+Der lokale HTTP-Modus ist auf den explizit erlaubten Issuer und JWKS gleicher
+Herkunft unter `127.0.0.1` beschränkt. Für GraphQL gilt bei der späteren Umsetzung
+dieselbe Regel: Lesen ist öffentlich, Mutationen erfordern Veranstalterrolle
+und bei bestehenden Ressourcen die Eigentümerschaft.
