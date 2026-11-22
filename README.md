@@ -43,12 +43,49 @@ pnpm dev
 - `Ort`: pro Veranstaltung höchstens ein Ort; die eindeutige Veranstaltungs-ID sichert die 1:1-Beziehung.
 - `Ticket`: beliebig viele Tickets pro Veranstaltung (1:n).
 
-Der Server stellt `GET /` und `GET /health` bereit. REST- und GraphQL-Mutationen sind noch nicht registriert.
-Künftige Mutationen verwenden denselben Access-Token-Verifier und dieselben Eigentümerbedingungen.
-Der Verifier ist für einen konfigurierten Issuer vorgesehen. Die Veranstalter-ID stammt aus dessen `sub`-Claim.
-Bei Updates und Deletes begrenzt die Anwendung die Mutation selbst mit `ownerScope`.
-Neue Veranstaltungen übernehmen den verifizierten Subject. Neue Orte und Tickets werden mit
-einem `INSERT ... SELECT` aus den auf den Eigentümer begrenzten Veranstaltungen angelegt.
-
 Veranstaltungsstarts werden als Zeitpunkte gespeichert. Bisherige Kalendertage werden als
 Mitternacht UTC übernommen. Der Audit-Wert `aktualisiert` wird bei Drizzle-Updates automatisch gesetzt.
+
+## REST-API
+
+Lesezugriffe sind öffentlich. Schreibzugriffe benötigen `Authorization: Bearer <access-token>`.
+Setze dazu `OIDC_ISSUER`, `OIDC_AUDIENCE` und `OIDC_JWKS_URL` gemeinsam.
+Der Verifier erwartet RS256 und einen HTTPS-JWKS-Endpunkt. Die Veranstalter-ID stammt aus `sub`.
+Ohne OIDC-Konfiguration sind Schreibzugriffe deaktiviert.
+
+| Methode | URL | Erfolg |
+|---|---|---|
+| GET | `/veranstaltungen` | 200, Liste |
+| POST | `/veranstaltungen` | 201, Veranstaltung und Location |
+| GET, PUT, DELETE | `/veranstaltungen/:id` | 200, 200, 204 |
+| GET, PUT, DELETE | `/veranstaltungen/:id/ort` | 200, 201 beim Anlegen oder 200 beim Ersetzen, 204 |
+| GET, POST | `/veranstaltungen/:id/tickets` | 200, 201 mit Location |
+| GET, PUT, DELETE | `/veranstaltungen/:id/tickets/:ticketId` | 200, 200, 204 |
+
+Listen unterstützen `limit` (Standard 20, maximal 100) und `offset` (Standard 0).
+Veranstaltungen lassen sich zusätzlich nach `q` (Titel), `kategorie`, `ab` (Zeitpunkt) und
+`schlagwort` filtern. Beispiel: `GET /veranstaltungen?kategorie=KONZERT&q=Jazz&limit=10`.
+
+POST und PUT erwarten `Content-Type: application/json`. PUT ersetzt die bearbeitbaren Felder.
+Beispielkörper für eine Veranstaltung, einen Ort und ein Ticket:
+
+```json
+{"titel":"Jazzabend","datum":"2027-02-01T19:00:00+01:00","kategorie":"KONZERT","preis":"12.50","schlagwoerter":["jazz"]}
+```
+
+```json
+{"name":"Stadthalle","strasse":"Markt 1","plz":"12345","stadt":"Beispielstadt"}
+```
+
+```json
+{"bezeichnung":"Standard","preis":"12.50","kontingent":25,"aktiv":true}
+```
+
+Die Veranstaltungsantwort ergänzt beispielsweise `"id":1`, `"veranstalterId":"user-42"`,
+`"erstellt":"2027-01-02T10:00:00.000Z"` und `"aktualisiert":"2027-01-02T10:00:00.000Z"`.
+Zeitpunkte werden in UTC ausgegeben. Preise bleiben Dezimalstrings.
+
+Fehler liefern JSON wie `{"error":"Ressource nicht gefunden."}`.
+Ungültige Eingaben liefern 400, fehlende oder ungültige Tokens 401 und fehlende oder
+fremde Ressourcen bei Schreibzugriffen 404. Zu große Bodies liefern 413 und ein
+falscher Content-Type liefert 415. DELETE liefert bei Erfolg keinen Body.

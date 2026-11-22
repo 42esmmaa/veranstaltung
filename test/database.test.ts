@@ -1,8 +1,72 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { eq } from 'drizzle-orm';
+import { Hono } from 'hono';
 import { db } from '../src/db/client.js';
 import { ownerScope } from '../src/db/ownership.js';
 import { ort, ticket, veranstaltung } from '../src/db/schema.js';
+import { createEventRoutes } from '../src/rest/routes.js';
+
+async function testRest() {
+  const app = new Hono().route('/veranstaltungen', createEventRoutes(db, async (authorization) => {
+    if (authorization === 'Bearer owner') return { subject: 'rest-owner' };
+    if (authorization === 'Bearer foreign') return { subject: 'rest-foreign' };
+    throw new Error('Ungültig');
+  }));
+  const request = (path: string, method: string, body?: object, token = 'owner') =>
+    app.request(path, {
+      method,
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  const path = '/veranstaltungen';
+  const event = {
+    titel: 'REST Jazz_%', datum: '2027-02-01T19:00:00+01:00', kategorie: 'KONZERT',
+    preis: '12.50', schlagwoerter: ['rest-jazz'], veranstalterId: 'spoofed',
+  };
+  const created = await request(path, 'POST', event);
+  assert.equal(created.status, 201);
+  const createdEvent = await created.json();
+  const id: number = createdEvent.id;
+  try {
+    assert.equal(createdEvent.veranstalterId, 'rest-owner');
+    const eventPath = `${path}/${id}`;
+    assert.equal(created.headers.get('Location'), eventPath);
+    const list = await request(path + '?q=Jazz_%25&schlagwort=rest-jazz&kategorie=KONZERT', 'GET');
+    assert.equal(list.status, 200);
+    assert.ok((await list.json()).some((row: { id: number }) => row.id === id));
+    assert.equal((await request(eventPath, 'GET')).status, 200);
+    assert.equal((await request(eventPath, 'PUT', event, 'foreign')).status, 404);
+    assert.equal((await request(eventPath, 'DELETE', undefined, 'foreign')).status, 404);
+    assert.equal((await request(eventPath, 'PUT', { ...event, titel: 'Neuer Titel' })).status, 200);
+
+    const placePath = eventPath + '/ort';
+    const place = { name: 'Halle', strasse: 'Weg 1', plz: '12345', stadt: 'Ort' };
+    assert.equal((await request(placePath, 'PUT', place, 'foreign')).status, 404);
+    assert.equal((await request(placePath, 'PUT', place)).status, 201);
+    assert.equal((await request(placePath, 'PUT', place)).status, 200);
+    assert.equal((await request(placePath, 'GET')).status, 200);
+    assert.equal((await request(placePath, 'DELETE', undefined, 'foreign')).status, 404);
+
+    const ticketsPath = eventPath + '/tickets';
+    const entry = { bezeichnung: 'Standard', preis: '12.50', kontingent: 10 };
+    assert.equal((await request(ticketsPath, 'POST', entry, 'foreign')).status, 404);
+    const ticketResponse = await request(ticketsPath, 'POST', entry);
+    assert.equal(ticketResponse.status, 201);
+    const ticketPath = `${ticketsPath}/${(await ticketResponse.json()).id}`;
+    assert.equal(ticketResponse.headers.get('Location'), ticketPath);
+    assert.equal((await request(ticketsPath, 'GET')).status, 200);
+    assert.equal((await request(ticketPath, 'PUT', entry, 'foreign')).status, 404);
+    assert.equal((await request(ticketPath, 'DELETE', undefined, 'foreign')).status, 404);
+    assert.equal((await request(ticketPath, 'PUT', { ...entry, kontingent: 5 })).status, 200);
+    assert.equal((await request(ticketPath, 'DELETE')).status, 204);
+    assert.equal((await request(placePath, 'DELETE')).status, 204);
+    assert.equal((await request(eventPath, 'DELETE')).status, 204);
+    assert.equal((await request(eventPath, 'GET')).status, 404);
+  } finally {
+    await db.delete(veranstaltung).where(eq(veranstaltung.id, id));
+  }
+}
 
 test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
   try {
@@ -44,6 +108,7 @@ test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
       assert.equal(await tx.query.ort.findFirst({ where: { id: place.id } }), undefined);
       assert.equal(await tx.query.ticket.findFirst({ where: { id: entry.id } }), undefined);
     });
+    await testRest();
   } finally {
     await db.$client.end();
   }
