@@ -86,6 +86,8 @@ Die Veranstaltungsantwort ergänzt beispielsweise `"id":1`, `"veranstalterId":"u
 Zeitpunkte werden in UTC ausgegeben. Preise bleiben Dezimalstrings.
 
 Fehler liefern JSON wie `{"error":"Ressource nicht gefunden."}`.
+Validierungsfehler enthalten pro Feld einen Eintrag in `details`, zum Beispiel
+`{"error":"Ungültige Eingaben.","details":[{"feld":"preis","nachricht":"Dezimalstring mit bis zu zwei Nachkommastellen erwartet."}]}`.
 Ungültige Eingaben liefern 400, fehlende oder ungültige Tokens 401 und fehlende oder
 fremde Ressourcen bei Schreibzugriffen 404. Zu große Bodies liefern 413 und ein
 falscher Content-Type liefert 415. DELETE liefert bei Erfolg keinen Body.
