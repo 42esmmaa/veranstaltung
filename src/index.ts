@@ -17,6 +17,8 @@ if ([OIDC_ISSUER, OIDC_AUDIENCE, OIDC_JWKS_URL].some(Boolean) &&
 const verify = OIDC_ISSUER && OIDC_AUDIENCE && OIDC_JWKS_URL
   ? createAccessTokenVerifier({
     issuer: OIDC_ISSUER, audience: OIDC_AUDIENCE, jwksUrl: OIDC_JWKS_URL, algorithms: ['RS256'],
+    allowLoopbackHttp: process.env.OIDC_ALLOW_LOOPBACK_HTTP === 'true',
+    keycloakOrganizerRole: 'veranstalter',
   })
   : undefined;
 app.route('/veranstaltungen', createEventRoutes(db, verify));

@@ -2,7 +2,7 @@ import { and, asc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
-import type { Organizer } from '../auth.js';
+import { OrganizerRoleRequired, type Organizer } from '../auth.js';
 import type { db } from '../db/client.js';
 import { ownerScope } from '../db/ownership.js';
 import { ort, ticket, veranstaltung } from '../db/schema.js';
@@ -36,7 +36,10 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
       if (!verify) throw new HTTPException(503, { message: 'Schreibzugriffe sind nicht konfiguriert.' });
       try {
         context.set('organizer', await verify(context.req.header('Authorization') ?? null));
-      } catch {
+      } catch (error) {
+        if (error instanceof OrganizerRoleRequired) {
+          throw new HTTPException(403, { message: 'Rolle veranstalter erforderlich.' });
+        }
         context.header('WWW-Authenticate', 'Bearer');
         throw new HTTPException(401, { message: 'Gültiges Access-Token erforderlich.' });
       }

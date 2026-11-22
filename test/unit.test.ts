@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Jwt } from 'hono/utils/jwt';
 import { app } from '../src/app.js';
-import { createAccessTokenVerifier } from '../src/auth.js';
+import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
 import type { db } from '../src/db/client.js';
 import { createEventRoutes } from '../src/rest/routes.js';
 import { eventInput, eventQuery, placeInput, ticketInput } from '../src/rest/input.js';
@@ -12,12 +12,18 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
   const disabled = createEventRoutes(database);
   assert.equal((await disabled.request('/', { method: 'POST' })).status, 503);
   const routes = createEventRoutes(database, async (authorization) => {
+    if (authorization === 'Bearer reader') throw new OrganizerRoleRequired();
     if (authorization !== 'Bearer test') throw new Error('Ungültig');
     return { subject: 'owner' };
   });
   const unauthorized = await routes.request('/1/tickets', { method: 'POST' });
   assert.equal(unauthorized.status, 401);
   assert.equal(unauthorized.headers.get('WWW-Authenticate'), 'Bearer');
+  const forbidden = await routes.request('/', {
+    method: 'POST', headers: { Authorization: 'Bearer reader' },
+  });
+  assert.equal(forbidden.status, 403);
+  assert.deepEqual(await forbidden.json(), { error: 'Rolle veranstalter erforderlich.' });
   const response = await routes.request('/', {
     method: 'POST',
     headers: { Authorization: 'Bearer test', 'Content-Type': 'application/json' },
@@ -85,4 +91,25 @@ test('Access-Tokens werden anhand der JWKS und Claims geprüft', async () => {
     await assert.rejects(verify('Bearer ' + await sign(claims)));
   }
   await assert.rejects(verify('Bearer ' + await sign({}, wrongSigningKey)));
+
+  const keycloakConfig = {
+    issuer, audience, jwksUrl: issuer + '/jwks', algorithms: ['ES256'] as const,
+    keycloakOrganizerRole: 'veranstalter',
+  };
+  const verifyKeycloak = createAccessTokenVerifier(keycloakConfig, async () => Response.json({ keys: [key] }));
+  const roles = { realm_access: { roles: ['veranstalter'] } };
+  assert.deepEqual(await verifyKeycloak('Bearer ' + await sign({ typ: 'Bearer', ...roles })), { subject: 'owner' });
+  await assert.rejects(verifyKeycloak('Bearer ' + await sign({ typ: 'Bearer' })), OrganizerRoleRequired);
+  await assert.rejects(verifyKeycloak('Bearer ' + await sign({ typ: 'ID', ...roles })));
+
+  const loopbackIssuer = 'http://127.0.0.1:8080/realms/veranstaltung';
+  const loopbackConfig = { ...keycloakConfig, issuer: loopbackIssuer, jwksUrl: loopbackIssuer + '/certs' };
+  assert.throws(() => createAccessTokenVerifier(loopbackConfig));
+  assert.doesNotThrow(() => createAccessTokenVerifier({ ...loopbackConfig, allowLoopbackHttp: true }));
+  assert.throws(() => createAccessTokenVerifier({
+    ...loopbackConfig, allowLoopbackHttp: true, jwksUrl: 'http://127.0.0.1:8081/certs',
+  }));
+  assert.throws(() => createAccessTokenVerifier({
+    ...loopbackConfig, allowLoopbackHttp: true, issuer: 'http://example.org', jwksUrl: 'http://example.org/certs',
+  }));
 });
