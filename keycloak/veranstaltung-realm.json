@@ -1,0 +1,40 @@
+{
+  "realm": "veranstaltung",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "veranstalter", "description": "Darf eigene Veranstaltungen verwalten" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "veranstaltungs-cli",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "Audience der Veranstaltungs-API",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "veranstaltungs-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": ["roles"],
+      "optionalClientScopes": []
+    }
+  ]
+}
