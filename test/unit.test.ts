@@ -5,6 +5,7 @@ import { app } from '../src/app.js';
 import { createAccessTokenVerifier } from '../src/auth.js';
 import type { db } from '../src/db/client.js';
 import { createEventRoutes } from '../src/rest/routes.js';
+import { eventInput, eventQuery, placeInput, ticketInput } from '../src/rest/input.js';
 
 test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zugriff ab', async () => {
   const database = {} as typeof db;
@@ -23,7 +24,28 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
     body: JSON.stringify({ titel: 'Test', datum: '2027-02-30T12:00:00Z' }),
   });
   assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: 'Ungültiges Datum.' });
+  const failure = await response.json();
+  assert.equal(failure.error, 'Ungültige Eingaben.');
+  assert.deepEqual(failure.details.map(({ feld }: { feld: string }) => feld), ['datum', 'kategorie', 'preis']);
+  const query = await routes.request('/?limit=101&ab=morgen');
+  assert.equal(query.status, 400);
+  assert.deepEqual((await query.json()).details.map(({ feld }: { feld: string }) => feld), ['limit', 'ab']);
+  const path = await routes.request('/1/tickets/0');
+  assert.equal(path.status, 400);
+  assert.equal((await path.json()).details[0].feld, 'ticketId');
+});
+
+test('Zod normalisiert gültige Werte und prüft die fachlichen Grenzen', () => {
+  const event = { titel: ' Jazz ', datum: '2027-02-01T19:00:00+01:00', kategorie: 'KONZERT', preis: '12.50' };
+  assert.deepEqual(eventInput.parse(event), {
+    ...event, titel: 'Jazz', datum: new Date('2027-02-01T18:00:00Z'), schlagwoerter: [],
+  });
+  for (const patch of [{ preis: '1.001' }, { schlagwoerter: [1] }, { kategorie: 'UNBEKANNT' }]) {
+    assert.equal(eventInput.safeParse({ ...event, ...patch }).success, false);
+  }
+  assert.equal(placeInput.safeParse({ name: 'Halle', strasse: 'Markt 1', plz: '12345' }).success, false);
+  assert.equal(ticketInput.safeParse({ bezeichnung: 'Standard', preis: '12.50', kontingent: -1 }).success, false);
+  assert.deepEqual(eventQuery.parse({ limit: '10', q: ' Jazz ' }), { limit: 10, offset: 0, q: 'Jazz' });
 });
 
 test('GET / und GET /health', async () => {
