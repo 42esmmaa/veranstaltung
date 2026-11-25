@@ -1,10 +1,4 @@
-import type { veranstaltung } from '../../db/schema.js';
+import type { z } from 'zod';
+import type { SuchparameterSchema } from '../validation/veranstaltung-validation.js';
 
-export type Suchparameter = {
-  readonly q?: string;
-  readonly kategorie?: typeof veranstaltung.$inferSelect.kategorie;
-  readonly ab?: Date;
-  readonly schlagwort?: string;
-  readonly limit: number;
-  readonly offset: number;
-};
+export type Suchparameter = Readonly<z.infer<typeof SuchparameterSchema>>;

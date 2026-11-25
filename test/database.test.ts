@@ -6,8 +6,16 @@ import { db } from '../src/db/client.js';
 import { ownerScope } from '../src/db/ownership.js';
 import { ort, ticket, veranstaltung } from '../src/db/schema.js';
 import { createEventRoutes } from '../src/rest/routes.js';
+import { createGraphqlApp } from '../src/veranstaltung/graphql/graphql-app.js';
 
 async function testRest() {
+  const graphql = createGraphqlApp(db);
+  const query = (value: string, variables: object = {}) =>
+    graphql.request('/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query: value, variables }),
+    });
   const app = new Hono().route(
     '/veranstaltungen',
     createEventRoutes(db, async (authorization) => {
@@ -48,8 +56,8 @@ async function testRest() {
     const list = await app.request(searchPath);
     assert.equal(list.status, 200);
     assert.ok((await list.json()).some((row: { id: number }) => row.id === id));
-    for (const query of ['&ab=2027-02-02T00:00:00Z', '&limit=1&offset=1']) {
-      const empty = await app.request(searchPath + query);
+    for (const suffix of ['&ab=2027-02-02T00:00:00Z', '&limit=1&offset=1']) {
+      const empty = await app.request(searchPath + suffix);
       assert.equal(empty.status, 200);
       assert.deepEqual(await empty.json(), []);
     }
@@ -113,6 +121,38 @@ async function testRest() {
     assert.equal(foundTicket.status, 200);
     assert.deepEqual(await foundTicket.json(), createdTicket);
 
+    const graphqlEvent = await query(
+      `query($id: ID!) {
+        veranstaltung(id: $id) {
+          id titel datum preis schlagwoerter
+          ort { name }
+          tickets(limit: 1) { id preis kontingent }
+        }
+      }`,
+      { id: String(id) },
+    );
+    assert.equal(graphqlEvent.status, 200);
+    assert.deepEqual(await graphqlEvent.json(), {
+      data: {
+        veranstaltung: {
+          id: String(id),
+          titel: 'Neuer Titel',
+          datum: '2027-02-01T18:00:00.000Z',
+          preis: '12.50',
+          schlagwoerter: ['rest-jazz'],
+          ort: { name: 'Neue Halle' },
+          tickets: [{ id: String(createdTicket.id), preis: '12.50', kontingent: 10 }],
+        },
+      },
+    });
+    const graphqlSearch =
+      'query($input: SuchParameterInput) { veranstaltungen(input: $input) { id } }';
+    const filter = { q: null, kategorie: 'KONZERT', schlagwort: 'rest-jazz', limit: 1 };
+    const graphqlList = await query(graphqlSearch, { input: filter });
+    assert.deepEqual(await graphqlList.json(), { data: { veranstaltungen: [{ id: String(id) }] } });
+    const graphqlEmpty = await query(graphqlSearch, { input: { ...filter, offset: 1 } });
+    assert.deepEqual(await graphqlEmpty.json(), { data: { veranstaltungen: [] } });
+
     const otherEventResponse = await request(path, 'POST', {
       ...event,
       titel: 'Andere Veranstaltung',
@@ -143,12 +183,25 @@ async function testRest() {
     assert.equal((await request(placePath, 'DELETE')).status, 204);
     assert.equal((await app.request(placePath)).status, 404);
     assert.equal((await request(placePath, 'DELETE')).status, 404);
+    const graphqlRelations = await query(
+      'query($id: ID!) { veranstaltung(id: $id) { ort { id } tickets { id } } }',
+      { id: String(id) },
+    );
+    assert.deepEqual(await graphqlRelations.json(), {
+      data: { veranstaltung: { ort: null, tickets: [] } },
+    });
     const deleted = await request(eventPath, 'DELETE');
     assert.equal(deleted.status, 204);
     assert.equal(await deleted.text(), '');
     const missing = await app.request(eventPath);
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: 'Ressource nicht gefunden.' });
+    const graphqlMissing = await query('query($id: ID!) { veranstaltung(id: $id) { id } }', {
+      id: String(id),
+    });
+    const graphqlMissingBody = await graphqlMissing.json();
+    assert.deepEqual(graphqlMissingBody.data, { veranstaltung: null });
+    assert.equal(graphqlMissingBody.errors[0].extensions.code, 'BAD_USER_INPUT');
     assert.equal((await request(placePath, 'PUT', place)).status, 404);
     assert.equal((await app.request(ticketsPath)).status, 404);
     assert.equal((await request(ticketsPath, 'POST', entry)).status, 404);

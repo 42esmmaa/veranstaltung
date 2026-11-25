@@ -9,6 +9,7 @@ import { eventQuery } from '../src/rest/input.js';
 import { OrtSchema } from '../src/veranstaltung/validation/ort-validation.js';
 import { TicketSchema } from '../src/veranstaltung/validation/ticket-validation.js';
 import { VeranstaltungSchema } from '../src/veranstaltung/validation/veranstaltung-validation.js';
+import { createGraphqlApp } from '../src/veranstaltung/graphql/graphql-app.js';
 
 test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zugriff ab', async () => {
   const database = {} as typeof db;
@@ -94,6 +95,31 @@ test('GET / und GET /health', async () => {
     const response = await app.request(path);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), body);
+  }
+});
+
+test('GraphQL validiert IDs und Suchparameter vor dem DB-Zugriff', async () => {
+  const graphql = createGraphqlApp({} as typeof db);
+  const query = (value: string) =>
+    graphql.request('/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query: value }),
+    });
+  const ready = await query('{ __typename }');
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.json(), { data: { __typename: 'Query' } });
+  for (const value of [
+    '{ veranstaltung(id: "1abc") { id } }',
+    '{ veranstaltung(id: "0") { id } }',
+    '{ veranstaltung(id: "2147483648") { id } }',
+    '{ veranstaltungen(input: { limit: 101 }) { id } }',
+    '{ veranstaltungen(input: { offset: -1 }) { id } }',
+    '{ veranstaltungen(input: { ab: "morgen" }) { id } }',
+  ]) {
+    const response = await query(value);
+    const result = await response.json();
+    assert.equal(result.errors[0].extensions.code, 'BAD_USER_INPUT');
   }
 });
 

@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import { boundedInteger, date, text } from '../veranstaltung/validation/common-validation.js';
-import { VeranstaltungSchema } from '../veranstaltung/validation/veranstaltung-validation.js';
+import { boundedInteger } from '../veranstaltung/validation/common-validation.js';
+import { SuchparameterSchema } from '../veranstaltung/validation/veranstaltung-validation.js';
 
 const numericParameter = (minimum: number, maximum?: number) =>
   z
@@ -20,12 +20,7 @@ export const pagination = z.object({
   offset: numericParameter(0).default(0),
 });
 
-export const eventQuery = pagination.extend({
-  q: text().optional(),
-  kategorie: VeranstaltungSchema.shape.kategorie.optional(),
-  ab: date.optional(),
-  schlagwort: text(50).optional(),
-});
+export const eventQuery = SuchparameterSchema.extend(pagination.shape);
 
 export class ValidationError extends HTTPException {
   constructor(readonly details: { feld: string; nachricht: string }[]) {

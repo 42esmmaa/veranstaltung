@@ -95,6 +95,19 @@ Veranstalterrolle 403 und fehlende oder
 fremde Ressourcen bei Schreibzugriffen 404. Zu große Bodies liefern 413 und ein
 falscher Content-Type liefert 415. DELETE liefert bei Erfolg keinen Body.
 
+## GraphQL
+
+`POST /graphql` bietet öffentliche Leseabfragen über GraphQL Yoga. Beispiel für den JSON-Body:
+
+```json
+{"query":"{ veranstaltungen(input: { kategorie: KONZERT, limit: 10 }) { id titel datum preis ort { name stadt } tickets(limit: 5) { id bezeichnung preis } } }"}
+```
+
+Eine einzelne Veranstaltung wird mit `veranstaltung(id: "1")` abgefragt. Die Suchfilter
+entsprechen REST; `limit` und `offset` sind bei GraphQL Zahlen. Preise werden als
+Dezimalstrings und Zeitpunkte in UTC ausgegeben. Ein fehlender Ort ergibt `null`.
+Schreiboperationen werden in einem späteren Schritt ergänzt.
+
 ## Lokal mit Keycloak anmelden
 
 Trage eigene lokale Zugangsdaten für `KC_BOOTSTRAP_ADMIN_USERNAME` und
