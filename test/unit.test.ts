@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { Jwt } from 'hono/utils/jwt';
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { app } from '../src/app.js';
 import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
 import type { db } from '../src/db/client.js';
@@ -94,6 +94,40 @@ test('GET / und GET /health', async () => {
   }
 });
 
+test('RS256-Keycloak-Tokens verwenden zwischengespeicherte Signaturschlüssel', async () => {
+  const issuer = 'https://issuer.example/realms/veranstaltung';
+  const { privateKey, publicKey } = await generateKeyPair('RS256');
+  const key = { ...(await exportJWK(publicKey)), kid: 'keycloak-test', alg: 'RS256' };
+  let requests = 0;
+  const verify = createAccessTokenVerifier(
+    {
+      issuer,
+      audience: 'veranstaltungs-api',
+      jwksUrl: issuer + '/protocol/openid-connect/certs',
+      algorithms: ['RS256'],
+      keycloakOrganizerRole: 'veranstalter',
+    },
+    async () => {
+      requests += 1;
+      return Response.json({ keys: [key] });
+    },
+  );
+  const token = await new SignJWT({
+    typ: 'Bearer',
+    realm_access: { roles: ['veranstalter'] },
+  })
+    .setProtectedHeader({ alg: 'RS256', kid: 'keycloak-test' })
+    .setIssuer(issuer)
+    .setAudience('veranstaltungs-api')
+    .setSubject('owner')
+    .setExpirationTime('1m')
+    .sign(privateKey);
+
+  assert.deepEqual(await verify('Bearer ' + token), { subject: 'owner' });
+  assert.deepEqual(await verify('Bearer ' + token), { subject: 'owner' });
+  assert.equal(requests, 1);
+});
+
 test('Access-Tokens werden anhand der JWKS und Claims geprüft', async () => {
   const issuer = 'https://issuer.example';
   const audience = 'veranstaltungs-api';
@@ -102,16 +136,6 @@ test('Access-Tokens werden anhand der JWKS und Claims geprüft', async () => {
   const { privateKey, publicKey } = await generatePair();
   const wrongKey = await generatePair();
   const key = { ...(await crypto.subtle.exportKey('jwk', publicKey)), kid: 'test', alg: 'ES256' };
-  const signingKey = {
-    ...(await crypto.subtle.exportKey('jwk', privateKey)),
-    kid: 'test',
-    alg: 'ES256' as const,
-  };
-  const wrongSigningKey = {
-    ...(await crypto.subtle.exportKey('jwk', wrongKey.privateKey)),
-    kid: 'test',
-    alg: 'ES256' as const,
-  };
   const verify = createAccessTokenVerifier(
     {
       issuer,
@@ -121,18 +145,16 @@ test('Access-Tokens werden anhand der JWKS und Claims geprüft', async () => {
     },
     async () => Response.json({ keys: [key] }),
   );
-  const sign = (claims: Record<string, unknown> = {}, signer = signingKey) =>
-    Jwt.sign(
-      {
-        iss: issuer,
-        aud: audience,
-        sub: 'owner',
-        exp: Math.floor(Date.now() / 1000) + 60,
-        ...claims,
-      },
-      signer,
-      'ES256',
-    );
+  const sign = (claims: Record<string, unknown> = {}, signer = privateKey) =>
+    new SignJWT({
+      iss: issuer,
+      aud: audience,
+      sub: 'owner',
+      exp: Math.floor(Date.now() / 1000) + 60,
+      ...claims,
+    })
+      .setProtectedHeader({ kid: 'test', alg: 'ES256' })
+      .sign(signer);
 
   assert.deepEqual(await verify('Bearer ' + (await sign())), { subject: 'owner' });
   await assert.rejects(verify(null));
@@ -142,10 +164,28 @@ test('Access-Tokens werden anhand der JWKS und Claims geprüft', async () => {
     { exp: 1 },
     { exp: undefined },
     { sub: undefined },
+    { sub: ' ' },
+    { iss: undefined },
+    { aud: undefined },
+    { nbf: Math.floor(Date.now() / 1000) + 120 },
   ]) {
     await assert.rejects(verify('Bearer ' + (await sign(claims))));
   }
-  await assert.rejects(verify('Bearer ' + (await sign({}, wrongSigningKey))));
+  await assert.rejects(verify('Bearer ' + (await sign({}, wrongKey.privateKey))));
+  const claims = {
+    iss: issuer,
+    aud: audience,
+    sub: 'owner',
+    exp: Math.floor(Date.now() / 1000) + 60,
+  };
+  const withoutKid = await new SignJWT(claims)
+    .setProtectedHeader({ alg: 'ES256' })
+    .sign(privateKey);
+  await assert.rejects(verify('Bearer ' + withoutKid));
+  const symmetricToken = await new SignJWT(claims)
+    .setProtectedHeader({ kid: 'test', alg: 'HS256' })
+    .sign(crypto.getRandomValues(new Uint8Array(32)));
+  await assert.rejects(verify('Bearer ' + symmetricToken));
 
   const keycloakConfig = {
     issuer,
