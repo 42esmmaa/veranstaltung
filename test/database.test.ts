@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { db } from '../src/db/client.js';
