@@ -1,14 +1,24 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 import { OrganizerRoleRequired, type Organizer } from '../auth.js';
 import type { db } from '../db/client.js';
 import { ownerScope } from '../db/ownership.js';
-import { ort, ticket, veranstaltung } from '../db/schema.js';
+import { ticket, veranstaltung } from '../db/schema.js';
 import { NotFoundError } from '../veranstaltung/service/errors.js';
-import { find, findById } from '../veranstaltung/service/veranstaltung-service.js';
-import { deleteFn, insert, update } from '../veranstaltung/service/veranstaltung-write-service.js';
+import {
+  find,
+  findById,
+  findOrtByVeranstaltungId,
+} from '../veranstaltung/service/veranstaltung-service.js';
+import {
+  deleteFn,
+  deleteOrt,
+  insert,
+  update,
+  updateOrt,
+} from '../veranstaltung/service/veranstaltung-write-service.js';
 import {
   eventInput,
   eventParams,
@@ -117,40 +127,13 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.get('/:id/ort', async (context) => {
     const { id: veranstaltungId } = validate(eventParams, context.req.param());
-    return context.json(
-      required(await database.query.ort.findFirst({ where: { veranstaltungId } })),
-    );
+    return context.json(await findOrtByVeranstaltungId(database, veranstaltungId));
   });
 
   routes.put('/:id/ort', async (context) => {
     const { id } = validate(eventParams, context.req.param());
     const values = await readBody(placeInput, context.req.raw);
-    const organizer = context.get('organizer');
-    const result = await database.transaction(async (tx) => {
-      const scope = ownerScope(tx, organizer);
-      required(
-        (
-          await tx
-            .select({ id: veranstaltung.id })
-            .from(veranstaltung)
-            .where(scope.veranstaltung(id))
-            .for('update')
-        )[0],
-      );
-      const [existing] = await tx
-        .update(ort)
-        .set(values)
-        .where(eq(ort.veranstaltungId, id))
-        .returning();
-      if (existing) {
-        return { row: existing, created: false };
-      }
-      const [row] = await tx
-        .insert(ort)
-        .values({ ...values, veranstaltungId: id })
-        .returning();
-      return { row, created: true };
-    });
+    const result = await updateOrt(database, id, values, context.get('organizer'));
     if (result.created) {
       context.header('Location', `/veranstaltungen/${id}/ort`);
     }
@@ -159,15 +142,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.delete('/:id/ort', async (context) => {
     const { id } = validate(eventParams, context.req.param());
-    const scope = ownerScope(database, context.get('organizer'));
-    required(
-      (
-        await database
-          .delete(ort)
-          .where(and(eq(ort.veranstaltungId, id), inArray(ort.veranstaltungId, scope.ownedEvents)))
-          .returning()
-      )[0],
-    );
+    await deleteOrt(database, id, context.get('organizer'));
     return context.body(null, 204);
   });
 

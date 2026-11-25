@@ -12,6 +12,14 @@ export const findById = async (database: typeof db, id: number) => {
   return row;
 };
 
+export const findOrtByVeranstaltungId = async (database: typeof db, veranstaltungId: number) => {
+  const row = await database.query.ort.findFirst({ where: { veranstaltungId } });
+  if (row === undefined) {
+    throw new NotFoundError('Ressource nicht gefunden.');
+  }
+  return row;
+};
+
 export const find = async (
   database: typeof db,
   { q, kategorie, ab, schlagwort, limit, offset }: Suchparameter,

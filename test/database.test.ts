@@ -70,11 +70,26 @@ async function testRest() {
 
     const placePath = eventPath + '/ort';
     const place = { name: 'Halle', strasse: 'Weg 1', plz: '12345', stadt: 'Ort' };
+    assert.equal((await app.request(placePath)).status, 404);
     assert.equal((await request(placePath, 'PUT', place, 'foreign')).status, 404);
-    assert.equal((await request(placePath, 'PUT', place)).status, 201);
-    assert.equal((await request(placePath, 'PUT', place)).status, 200);
-    assert.equal((await request(placePath, 'GET')).status, 200);
+    assert.equal((await app.request(placePath)).status, 404);
+    const createdPlaceResponse = await request(placePath, 'PUT', place);
+    assert.equal(createdPlaceResponse.status, 201);
+    assert.equal(createdPlaceResponse.headers.get('Location'), placePath);
+    const createdPlace = await createdPlaceResponse.json();
+    assert.equal(createdPlace.veranstaltungId, id);
+    const changedPlace = { ...place, name: 'Neue Halle' };
+    const updatedPlaceResponse = await request(placePath, 'PUT', changedPlace);
+    assert.equal(updatedPlaceResponse.status, 200);
+    assert.equal(updatedPlaceResponse.headers.get('Location'), null);
+    const updatedPlace = await updatedPlaceResponse.json();
+    assert.equal(updatedPlace.id, createdPlace.id);
+    assert.equal(updatedPlace.name, changedPlace.name);
+    assert.equal((await request(placePath, 'PUT', place, 'foreign')).status, 404);
     assert.equal((await request(placePath, 'DELETE', undefined, 'foreign')).status, 404);
+    const foundPlace = await app.request(placePath);
+    assert.equal(foundPlace.status, 200);
+    assert.deepEqual(await foundPlace.json(), updatedPlace);
 
     const ticketsPath = eventPath + '/tickets';
     const entry = { bezeichnung: 'Standard', preis: '12.50', kontingent: 10 };
@@ -89,12 +104,15 @@ async function testRest() {
     assert.equal((await request(ticketPath, 'PUT', { ...entry, kontingent: 5 })).status, 200);
     assert.equal((await request(ticketPath, 'DELETE')).status, 204);
     assert.equal((await request(placePath, 'DELETE')).status, 204);
+    assert.equal((await app.request(placePath)).status, 404);
+    assert.equal((await request(placePath, 'DELETE')).status, 404);
     const deleted = await request(eventPath, 'DELETE');
     assert.equal(deleted.status, 204);
     assert.equal(await deleted.text(), '');
     const missing = await app.request(eventPath);
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: 'Ressource nicht gefunden.' });
+    assert.equal((await request(placePath, 'PUT', place)).status, 404);
     for (const method of ['PUT', 'DELETE']) {
       const missingWrite = await request(eventPath, method, method === 'PUT' ? event : undefined);
       assert.equal(missingWrite.status, 404);
