@@ -34,8 +34,52 @@ pnpm dev
 `PORT` ist standardmäßig `3000`. Für den Start ohne Watch-Modus zuerst `pnpm build` und danach `pnpm start` ausführen.
 
 `pnpm db:generate` wird bei Änderungen am Drizzle-Schema verwendet. Die erzeugte SQL-Migration vor dem Anwenden prüfen.
-`pnpm test` prüft die HTTP-Routen und Access-Tokens. Für `pnpm test:db` zuerst
-`DATABASE_URL` auf eine separate Testdatenbank setzen und `pnpm db:migrate` ausführen.
+
+## Prüfungen und GitHub Actions
+
+Die Abhängigkeiten mit dem versionierten Lockfile installieren:
+
+```powershell
+pnpm install --frozen-lockfile
+```
+
+Diese Prüfungen benötigen keine laufenden Dienste:
+
+| Befehl | Prüfung |
+|---|---|
+| `pnpm fmt:check` | Einheitliche Formatierung mit Oxfmt |
+| `pnpm lint` | Statische Codeanalyse mit Oxlint |
+| `pnpm typecheck` | TypeScript-Typprüfung einschließlich der Tests |
+| `pnpm build` | Übersetzung des Appservers nach `dist` |
+| `pnpm test` | REST-/GraphQL-Validierung, Tokenprüfung und Berechtigungsfehler mit Vitest |
+
+Oxlint verwendet `oxlint.config.mts`. Aktiv sind die Kategorien `correctness` und
+`suspicious` sowie die dort ergänzten Regeln, beispielsweise für geschweifte Klammern
+und Typimporte. Oxfmt verwendet `oxfmt.config.mts`; Markdown-Dateien, bestehende
+Migrationen, der Keycloak-Export und das Lockfile sind von der Formatierung ausgenommen.
+
+Automatische Korrekturen und Formatierung ausführen:
+
+```powershell
+pnpm lint:fix
+pnpm fmt
+```
+
+Anschließend die Änderungen mit `git diff` ansehen und `pnpm lint` sowie
+`pnpm fmt:check` erneut ausführen.
+
+`pnpm test:db` prüft Relationen, Eigentümerschaft sowie REST- und GraphQL-Zugriffe mit
+PostgreSQL. Dafür `DATABASE_URL` in der aktuellen Shell auf eine separate Testdatenbank
+setzen, zuerst `pnpm db:migrate` und danach `pnpm test:db` ausführen.
+Die Tests legen eigene Datensätze an und löschen sie wieder. Ein laufender Appserver
+oder Keycloak ist für diese Tests nicht erforderlich; die HTTP-Aufrufe laufen innerhalb
+der Hono-App. Der tatsächliche Keycloak-Login wird wie unten beschrieben separat geprüft.
+
+Der Workflow `.github/workflows/ci.yml` läuft bei Pushes und Pull Requests. Er verwendet
+Node.js 24 und die in `package.json` festgelegte pnpm-Version, installiert mit
+`--frozen-lockfile` und führt die fünf Prüfungen aus der Tabelle aus. Für Migrationen
+und `pnpm test:db` stellt er eine eigene PostgreSQL-Instanz bereit. Schlägt eine Prüfung
+fehl, schlägt der CI-Job fehl; auch Oxlint und die Oxfmt-Formatprüfung sind Pflichtschritte.
 
 ## Datenmodell
 
@@ -180,6 +224,6 @@ Browserfenster. Ein `DELETE /veranstaltungen/$($event.id)` mit dessen Token muss
 Ohne Token liefert er `401`.
 
 Der lokale HTTP-Modus ist auf den explizit erlaubten Issuer und JWKS gleicher
-Herkunft unter `127.0.0.1` beschränkt. Für GraphQL gilt bei der späteren Umsetzung
+Herkunft unter `127.0.0.1` beschränkt. Für GraphQL gilt
 dieselbe Regel: Lesen ist öffentlich, Mutationen erfordern Veranstalterrolle
 und bei bestehenden Ressourcen die Eigentümerschaft.
