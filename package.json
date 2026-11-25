@@ -8,7 +8,7 @@
     "start": "node --env-file-if-exists=.env dist/index.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/unit.test.ts",
+    "test": "vitest run test/unit.test.ts",
     "test:db": "node --import tsx --test test/database.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -16,18 +16,19 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.0",
+    "dotenv": "18.0.9",
     "drizzle-orm": "1.0.0-rc.5",
     "hono": "^4.13.18",
     "pg": "8.23.1",
-    "dotenv": "18.0.9",
     "zod": "4.1.12"
   },
   "devDependencies": {
     "@types/node": "^24.5.0",
     "@types/pg": "8.23.1",
+    "drizzle-kit": "1.0.0-rc.5",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "drizzle-kit": "1.0.0-rc.5"
+    "vitest": "^5.1.1"
   },
   "devEngines": {
     "packageManager": {

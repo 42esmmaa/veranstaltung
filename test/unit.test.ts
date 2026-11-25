@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { Jwt } from 'hono/utils/jwt';
 import { app } from '../src/app.js';
 import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
