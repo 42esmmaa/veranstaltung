@@ -12,8 +12,12 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
   const disabled = createEventRoutes(database);
   assert.equal((await disabled.request('/', { method: 'POST' })).status, 503);
   const routes = createEventRoutes(database, async (authorization) => {
-    if (authorization === 'Bearer reader') throw new OrganizerRoleRequired();
-    if (authorization !== 'Bearer test') throw new Error('Ungültig');
+    if (authorization === 'Bearer reader') {
+      throw new OrganizerRoleRequired();
+    }
+    if (authorization !== 'Bearer test') {
+      throw new Error('Ungültig');
+    }
     return { subject: 'owner' };
   });
   const unauthorized = await routes.request('/1/tickets', { method: 'POST' });

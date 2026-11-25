@@ -22,12 +22,16 @@ import {
 type Verify = (authorization: string | null) => Promise<Organizer>;
 
 function required<Row>(row: Row | undefined): Row {
-  if (row === undefined) throw new HTTPException(404, { message: 'Ressource nicht gefunden.' });
+  if (row === undefined) {
+    throw new HTTPException(404, { message: 'Ressource nicht gefunden.' });
+  }
   return row;
 }
 
 function databaseCode(error: unknown): unknown {
-  if (!(error instanceof Error)) return undefined;
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
   return 'code' in error ? error.code : databaseCode(error.cause);
 }
 
@@ -35,19 +39,24 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
   const routes = new Hono<{ Variables: { organizer: Organizer } }>();
 
   routes.onError((error, context) => {
-    if (error instanceof ValidationError)
+    if (error instanceof ValidationError) {
       return context.json({ error: error.message, details: error.details }, 400);
-    if (error instanceof HTTPException) return context.json({ error: error.message }, error.status);
-    if (databaseCode(error) === '23505')
+    }
+    if (error instanceof HTTPException) {
+      return context.json({ error: error.message }, error.status);
+    }
+    if (databaseCode(error) === '23505') {
       return context.json({ error: 'Ressource existiert bereits.' }, 409);
+    }
     console.error('REST-Anfrage fehlgeschlagen', { name: error.name, code: databaseCode(error) });
     return context.json({ error: 'Interner Serverfehler.' }, 500);
   });
 
   routes.use('*', async (context, next) => {
     if (['POST', 'PUT', 'DELETE'].includes(context.req.method)) {
-      if (!verify)
+      if (!verify) {
         throw new HTTPException(503, { message: 'Schreibzugriffe sind nicht konfiguriert.' });
+      }
       try {
         context.set('organizer', await verify(context.req.header('Authorization') ?? null));
       } catch (error) {
@@ -155,14 +164,18 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
         .set(values)
         .where(eq(ort.veranstaltungId, id))
         .returning();
-      if (existing) return { row: existing, created: false };
+      if (existing) {
+        return { row: existing, created: false };
+      }
       const [row] = await tx
         .insert(ort)
         .values({ ...values, veranstaltungId: id })
         .returning();
       return { row, created: true };
     });
-    if (result.created) context.header('Location', `/veranstaltungen/${id}/ort`);
+    if (result.created) {
+      context.header('Location', `/veranstaltungen/${id}/ort`);
+    }
     return context.json(result.row, result.created ? 201 : 200);
   });
 

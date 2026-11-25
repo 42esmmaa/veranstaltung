@@ -49,13 +49,17 @@ export function createAccessTokenVerifier(
   let cached: { keys: Keys; expiresAt: number } | undefined;
   let pending: Promise<Keys> | undefined;
   async function loadKeys() {
-    if (cached && Date.now() < cached.expiresAt) return cached.keys;
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.keys;
+    }
     pending ??= (async () => {
       const response = await fetchJwks(jwksUrl, {
         redirect: 'error',
         signal: AbortSignal.timeout(5000),
       });
-      if (!response.ok) throw new Error('JWKS konnte nicht geladen werden.');
+      if (!response.ok) {
+        throw new Error('JWKS konnte nicht geladen werden.');
+      }
       const body = (await response.json()) as { keys?: Keys };
       if (!Array.isArray(body?.keys) || !body.keys.every((key) => key && typeof key === 'object')) {
         throw new Error('Ungültiges JWKS.');
@@ -69,7 +73,9 @@ export function createAccessTokenVerifier(
   }
   return async (authorization: string | null): Promise<Organizer> => {
     const token = /^Bearer ([^\s]+)$/i.exec(authorization ?? '')?.[1];
-    if (!token) throw new Error('Bearer-Token fehlt.');
+    if (!token) {
+      throw new Error('Bearer-Token fehlt.');
+    }
     const {
       header: { alg, kid },
     } = Jwt.decode(token);
@@ -85,7 +91,9 @@ export function createAccessTokenVerifier(
       throw new Error('Verpflichtende Token-Claims fehlen.');
     }
     if (organizerRole) {
-      if (payload.typ !== 'Bearer') throw new Error('Keycloak-Access-Token erforderlich.');
+      if (payload.typ !== 'Bearer') {
+        throw new Error('Keycloak-Access-Token erforderlich.');
+      }
       const realmAccess = payload.realm_access;
       if (
         typeof realmAccess !== 'object' ||

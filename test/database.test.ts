@@ -11,8 +11,12 @@ async function testRest() {
   const app = new Hono().route(
     '/veranstaltungen',
     createEventRoutes(db, async (authorization) => {
-      if (authorization === 'Bearer owner') return { subject: 'rest-owner' };
-      if (authorization === 'Bearer foreign') return { subject: 'rest-foreign' };
+      if (authorization === 'Bearer owner') {
+        return { subject: 'rest-owner' };
+      }
+      if (authorization === 'Bearer foreign') {
+        return { subject: 'rest-foreign' };
+      }
       throw new Error('Ungültig');
     }),
   );
