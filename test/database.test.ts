@@ -43,10 +43,21 @@ async function testRest() {
     assert.equal(createdEvent.veranstalterId, 'rest-owner');
     const eventPath = `${path}/${id}`;
     assert.equal(created.headers.get('Location'), eventPath);
-    const list = await request(path + '?q=Jazz_%25&schlagwort=rest-jazz&kategorie=KONZERT', 'GET');
+    const searchPath = path + '?q=Jazz_%25&schlagwort=rest-jazz&kategorie=KONZERT';
+    const list = await app.request(searchPath);
     assert.equal(list.status, 200);
     assert.ok((await list.json()).some((row: { id: number }) => row.id === id));
-    assert.equal((await request(eventPath, 'GET')).status, 200);
+    for (const query of ['&ab=2027-02-02T00:00:00Z', '&limit=1&offset=1']) {
+      const empty = await app.request(searchPath + query);
+      assert.equal(empty.status, 200);
+      assert.deepEqual(await empty.json(), []);
+    }
+    const found = await app.request(eventPath);
+    assert.equal(found.status, 200);
+    const foundEvent = await found.json();
+    assert.equal(foundEvent.id, id);
+    assert.equal(foundEvent.titel, event.titel);
+    assert.equal(foundEvent.datum, '2027-02-01T18:00:00.000Z');
     assert.equal((await request(eventPath, 'PUT', event, 'foreign')).status, 404);
     assert.equal((await request(eventPath, 'DELETE', undefined, 'foreign')).status, 404);
     assert.equal((await request(eventPath, 'PUT', { ...event, titel: 'Neuer Titel' })).status, 200);
@@ -73,7 +84,9 @@ async function testRest() {
     assert.equal((await request(ticketPath, 'DELETE')).status, 204);
     assert.equal((await request(placePath, 'DELETE')).status, 204);
     assert.equal((await request(eventPath, 'DELETE')).status, 204);
-    assert.equal((await request(eventPath, 'GET')).status, 404);
+    const missing = await app.request(eventPath);
+    assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), { error: 'Ressource nicht gefunden.' });
   } finally {
     await db.delete(veranstaltung).where(eq(veranstaltung.id, id));
   }

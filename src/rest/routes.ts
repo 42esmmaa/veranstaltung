@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
@@ -6,6 +6,8 @@ import { OrganizerRoleRequired, type Organizer } from '../auth.js';
 import type { db } from '../db/client.js';
 import { ownerScope } from '../db/ownership.js';
 import { ort, ticket, veranstaltung } from '../db/schema.js';
+import { NotFoundError } from '../veranstaltung/service/errors.js';
+import { find, findById } from '../veranstaltung/service/veranstaltung-service.js';
 import {
   eventInput,
   eventParams,
@@ -39,6 +41,9 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
   const routes = new Hono<{ Variables: { organizer: Organizer } }>();
 
   routes.onError((error, context) => {
+    if (error instanceof NotFoundError) {
+      return context.json({ error: error.message }, 404);
+    }
     if (error instanceof ValidationError) {
       return context.json({ error: error.message, details: error.details }, 400);
     }
@@ -80,27 +85,8 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
   );
 
   routes.get('/', async (context) => {
-    const { q, kategorie, ab, schlagwort, limit, offset } = validate(
-      eventQuery,
-      context.req.query(),
-    );
-    const term = q === undefined ? undefined : q.replace(/[\\%_]/g, '\\$&');
-    const conditions = and(
-      term === undefined ? undefined : ilike(veranstaltung.titel, `%${term}%`),
-      kategorie === undefined ? undefined : eq(veranstaltung.kategorie, kategorie),
-      ab === undefined ? undefined : gte(veranstaltung.datum, ab),
-      schlagwort === undefined
-        ? undefined
-        : sql`${veranstaltung.schlagwoerter} @> ${JSON.stringify([schlagwort])}::jsonb`,
-    );
-    const rows = await database
-      .select()
-      .from(veranstaltung)
-      .where(conditions)
-      .orderBy(asc(veranstaltung.datum), asc(veranstaltung.id))
-      .limit(limit)
-      .offset(offset);
-    return context.json(rows);
+    const suchparameter = validate(eventQuery, context.req.query());
+    return context.json(await find(database, suchparameter));
   });
 
   routes.post('/', async (context) => {
@@ -115,7 +101,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.get('/:id', async (context) => {
     const { id } = validate(eventParams, context.req.param());
-    return context.json(required(await database.query.veranstaltung.findFirst({ where: { id } })));
+    return context.json(await findById(database, id));
   });
 
   routes.put('/:id', async (context) => {
