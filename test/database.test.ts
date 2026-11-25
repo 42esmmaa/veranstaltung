@@ -39,6 +39,7 @@ async function testRest() {
   assert.equal(created.status, 201);
   const createdEvent = await created.json();
   const id: number = createdEvent.id;
+  let otherEventId: number | undefined;
   try {
     assert.equal(createdEvent.veranstalterId, 'rest-owner');
     const eventPath = `${path}/${id}`;
@@ -93,16 +94,52 @@ async function testRest() {
 
     const ticketsPath = eventPath + '/tickets';
     const entry = { bezeichnung: 'Standard', preis: '12.50', kontingent: 10 };
+    const emptyTickets = await app.request(ticketsPath);
+    assert.equal(emptyTickets.status, 200);
+    assert.deepEqual(await emptyTickets.json(), []);
     assert.equal((await request(ticketsPath, 'POST', entry, 'foreign')).status, 404);
     const ticketResponse = await request(ticketsPath, 'POST', entry);
     assert.equal(ticketResponse.status, 201);
-    const ticketPath = `${ticketsPath}/${(await ticketResponse.json()).id}`;
+    const createdTicket = await ticketResponse.json();
+    assert.equal(createdTicket.veranstaltungId, id);
+    assert.equal(createdTicket.aktiv, true);
+    const ticketPath = `${ticketsPath}/${createdTicket.id}`;
     assert.equal(ticketResponse.headers.get('Location'), ticketPath);
-    assert.equal((await request(ticketsPath, 'GET')).status, 200);
+    const ticketList = await app.request(ticketsPath + '?limit=1');
+    assert.equal(ticketList.status, 200);
+    assert.deepEqual(await ticketList.json(), [createdTicket]);
+    assert.deepEqual(await (await app.request(ticketsPath + '?limit=1&offset=1')).json(), []);
+    const foundTicket = await app.request(ticketPath);
+    assert.equal(foundTicket.status, 200);
+    assert.deepEqual(await foundTicket.json(), createdTicket);
+
+    const otherEventResponse = await request(path, 'POST', {
+      ...event,
+      titel: 'Andere Veranstaltung',
+    });
+    assert.equal(otherEventResponse.status, 201);
+    otherEventId = (await otherEventResponse.json()).id;
+    const wrongTicketPath = `${path}/${otherEventId}/tickets/${createdTicket.id}`;
+    for (const method of ['GET', 'PUT', 'DELETE']) {
+      const wrongParent = await request(
+        wrongTicketPath,
+        method,
+        method === 'PUT' ? entry : undefined,
+      );
+      assert.equal(wrongParent.status, 404);
+    }
     assert.equal((await request(ticketPath, 'PUT', entry, 'foreign')).status, 404);
     assert.equal((await request(ticketPath, 'DELETE', undefined, 'foreign')).status, 404);
-    assert.equal((await request(ticketPath, 'PUT', { ...entry, kontingent: 5 })).status, 200);
-    assert.equal((await request(ticketPath, 'DELETE')).status, 204);
+    assert.deepEqual(await (await app.request(ticketPath)).json(), createdTicket);
+    const updatedTicketResponse = await request(ticketPath, 'PUT', { ...entry, kontingent: 5 });
+    assert.equal(updatedTicketResponse.status, 200);
+    assert.deepEqual(await updatedTicketResponse.json(), { ...createdTicket, kontingent: 5 });
+    const deletedTicket = await request(ticketPath, 'DELETE');
+    assert.equal(deletedTicket.status, 204);
+    assert.equal(await deletedTicket.text(), '');
+    assert.equal((await app.request(ticketPath)).status, 404);
+    assert.equal((await request(ticketPath, 'PUT', entry)).status, 404);
+    assert.equal((await request(ticketPath, 'DELETE')).status, 404);
     assert.equal((await request(placePath, 'DELETE')).status, 204);
     assert.equal((await app.request(placePath)).status, 404);
     assert.equal((await request(placePath, 'DELETE')).status, 404);
@@ -113,12 +150,17 @@ async function testRest() {
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: 'Ressource nicht gefunden.' });
     assert.equal((await request(placePath, 'PUT', place)).status, 404);
+    assert.equal((await app.request(ticketsPath)).status, 404);
+    assert.equal((await request(ticketsPath, 'POST', entry)).status, 404);
     for (const method of ['PUT', 'DELETE']) {
       const missingWrite = await request(eventPath, method, method === 'PUT' ? event : undefined);
       assert.equal(missingWrite.status, 404);
       assert.deepEqual(await missingWrite.json(), { error: 'Ressource nicht gefunden.' });
     }
   } finally {
+    if (otherEventId !== undefined) {
+      await db.delete(veranstaltung).where(eq(veranstaltung.id, otherEventId));
+    }
     await db.delete(veranstaltung).where(eq(veranstaltung.id, id));
   }
 }

@@ -2,7 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { Organizer } from '../../auth.js';
 import type { db } from '../../db/client.js';
 import { ownerScope } from '../../db/ownership.js';
-import { ort, veranstaltung } from '../../db/schema.js';
+import { ort, ticket, veranstaltung } from '../../db/schema.js';
 import { NotFoundError } from './errors.js';
 
 export type VeranstaltungInput = Pick<
@@ -11,6 +11,11 @@ export type VeranstaltungInput = Pick<
 >;
 
 export type OrtInput = Pick<typeof ort.$inferSelect, 'name' | 'strasse' | 'plz' | 'stadt'>;
+
+export type TicketInput = Pick<
+  typeof ticket.$inferSelect,
+  'bezeichnung' | 'preis' | 'kontingent' | 'aktiv'
+>;
 
 export const insert = async (
   database: typeof db,
@@ -105,6 +110,67 @@ export const deleteOrt = async (
       ),
     )
     .returning({ id: ort.id });
+  if (row === undefined) {
+    throw new NotFoundError('Ressource nicht gefunden.');
+  }
+};
+
+export const insertTicket = async (
+  database: typeof db,
+  veranstaltungId: number,
+  values: TicketInput,
+  organizer: Organizer,
+) =>
+  database.transaction(async (tx) => {
+    const scope = ownerScope(tx, organizer);
+    const [event] = await tx
+      .select({ id: veranstaltung.id })
+      .from(veranstaltung)
+      .where(scope.veranstaltung(veranstaltungId))
+      .for('key share');
+    if (event === undefined) {
+      throw new NotFoundError('Ressource nicht gefunden.');
+    }
+    const [row] = await tx
+      .insert(ticket)
+      .values({ ...values, veranstaltungId })
+      .returning();
+    if (row === undefined) {
+      throw new Error('Ticket wurde nicht eingefügt.');
+    }
+    return row;
+  });
+
+export const updateTicket = async (
+  database: typeof db,
+  veranstaltungId: number,
+  id: number,
+  values: TicketInput,
+  organizer: Organizer,
+) => {
+  const scope = ownerScope(database, organizer);
+  const [row] = await database
+    .update(ticket)
+    .set(values)
+    .where(and(eq(ticket.veranstaltungId, veranstaltungId), scope.ticket(id)))
+    .returning();
+  if (row === undefined) {
+    throw new NotFoundError('Ressource nicht gefunden.');
+  }
+  return row;
+};
+
+export const deleteTicket = async (
+  database: typeof db,
+  veranstaltungId: number,
+  id: number,
+  organizer: Organizer,
+) => {
+  const scope = ownerScope(database, organizer);
+  const [row] = await database
+    .delete(ticket)
+    .where(and(eq(ticket.veranstaltungId, veranstaltungId), scope.ticket(id)))
+    .returning({ id: ticket.id });
   if (row === undefined) {
     throw new NotFoundError('Ressource nicht gefunden.');
   }

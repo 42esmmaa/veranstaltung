@@ -1,23 +1,25 @@
-import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 import { OrganizerRoleRequired, type Organizer } from '../auth.js';
 import type { db } from '../db/client.js';
-import { ownerScope } from '../db/ownership.js';
-import { ticket, veranstaltung } from '../db/schema.js';
 import { NotFoundError } from '../veranstaltung/service/errors.js';
 import {
   find,
   findById,
   findOrtByVeranstaltungId,
+  findTicketById,
+  findTicketsByVeranstaltungId,
 } from '../veranstaltung/service/veranstaltung-service.js';
 import {
   deleteFn,
   deleteOrt,
+  deleteTicket,
   insert,
+  insertTicket,
   update,
   updateOrt,
+  updateTicket,
 } from '../veranstaltung/service/veranstaltung-write-service.js';
 import {
   eventInput,
@@ -33,13 +35,6 @@ import {
 } from './input.js';
 
 type Verify = (authorization: string | null) => Promise<Organizer>;
-
-function required<Row>(row: Row | undefined): Row {
-  if (row === undefined) {
-    throw new HTTPException(404, { message: 'Ressource nicht gefunden.' });
-  }
-  return row;
-}
 
 function databaseCode(error: unknown): unknown {
   if (!(error instanceof Error)) {
@@ -148,43 +143,14 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.get('/:id/tickets', async (context) => {
     const { id } = validate(eventParams, context.req.param());
-    const { limit, offset } = validate(pagination, context.req.query());
-    required(
-      await database.query.veranstaltung.findFirst({ where: { id }, columns: { id: true } }),
-    );
-    return context.json(
-      await database
-        .select()
-        .from(ticket)
-        .where(eq(ticket.veranstaltungId, id))
-        .orderBy(asc(ticket.id))
-        .limit(limit)
-        .offset(offset),
-    );
+    const pageable = validate(pagination, context.req.query());
+    return context.json(await findTicketsByVeranstaltungId(database, id, pageable));
   });
 
   routes.post('/:id/tickets', async (context) => {
     const { id } = validate(eventParams, context.req.param());
     const values = await readBody(ticketInput, context.req.raw);
-    const organizer = context.get('organizer');
-    const row = await database.transaction(async (tx) => {
-      const scope = ownerScope(tx, organizer);
-      required(
-        (
-          await tx
-            .select({ id: veranstaltung.id })
-            .from(veranstaltung)
-            .where(scope.veranstaltung(id))
-            .for('key share')
-        )[0],
-      );
-      return (
-        await tx
-          .insert(ticket)
-          .values({ ...values, veranstaltungId: id })
-          .returning()
-      )[0];
-    });
+    const row = await insertTicket(database, id, values, context.get('organizer'));
     context.header('Location', `/veranstaltungen/${id}/tickets/${row.id}`);
     return context.json(row, 201);
   });
@@ -192,34 +158,19 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
   const ticketPath = '/:id/tickets/:ticketId';
   routes.get(ticketPath, async (context) => {
     const { id: veranstaltungId, ticketId: id } = validate(ticketParams, context.req.param());
-    return context.json(
-      required(await database.query.ticket.findFirst({ where: { id, veranstaltungId } })),
-    );
+    return context.json(await findTicketById(database, veranstaltungId, id));
   });
 
   routes.put(ticketPath, async (context) => {
     const { id, ticketId } = validate(ticketParams, context.req.param());
     const values = await readBody(ticketInput, context.req.raw);
-    const scope = ownerScope(database, context.get('organizer'));
-    const [row] = await database
-      .update(ticket)
-      .set(values)
-      .where(and(eq(ticket.veranstaltungId, id), scope.ticket(ticketId)))
-      .returning();
-    return context.json(required(row));
+    const row = await updateTicket(database, id, ticketId, values, context.get('organizer'));
+    return context.json(row);
   });
 
   routes.delete(ticketPath, async (context) => {
     const { id, ticketId } = validate(ticketParams, context.req.param());
-    const scope = ownerScope(database, context.get('organizer'));
-    required(
-      (
-        await database
-          .delete(ticket)
-          .where(and(eq(ticket.veranstaltungId, id), scope.ticket(ticketId)))
-          .returning()
-      )[0],
-    );
+    await deleteTicket(database, id, ticketId, context.get('organizer'));
     return context.body(null, 204);
   });
 
