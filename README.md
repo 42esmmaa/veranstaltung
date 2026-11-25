@@ -35,6 +35,51 @@ pnpm dev
 
 `pnpm db:generate` wird bei Änderungen am Drizzle-Schema verwendet. Die erzeugte SQL-Migration vor dem Anwenden prüfen.
 
+## Appserver und PostgreSQL mit Docker Compose
+
+Das Profil `app` startet den Appserver und PostgreSQL gemeinsam. Ergänze bei einer
+bereits vorhandenen `.env` die Variable `DOCKER_DATABASE_URL` aus `.env.example`.
+Sie verwendet den Compose-Dienstnamen `postgres` und den internen Port `5432`;
+`DATABASE_URL` mit `localhost` ist für den Start auf dem Host vorgesehen.
+Benutzer, Passwort und Datenbank müssen zu `POSTGRES_USER`, `POSTGRES_PASSWORD` und
+`POSTGRES_DB` passen. Sonderzeichen in Benutzername und Passwort müssen in beiden
+Verbindungs-URLs URL-kodiert sein.
+
+```powershell
+docker compose --profile app up -d --build --wait
+docker compose --profile app ps -a
+```
+
+Der Dienst `migrate` wartet auf eine gesunde Datenbank und wendet die versionierten
+Drizzle-Migrationen an. Erst nach seinem erfolgreichen Abschluss startet der Appserver.
+`migrate` beendet sich dabei mit Status `0`; `app` und `postgres` laufen weiter.
+Bei späteren Starts werden bereits angewendete Migrationen nicht erneut ausgeführt.
+
+Der Appserver ist unter `http://localhost:3000` erreichbar; `PORT` ändert den Host-Port.
+`POSTGRES_PORT` ändert den auf dem Host veröffentlichten Datenbankport. Im Compose-Netz
+bleiben die Ports `3000` und `5432` bestehen. Ein bereits lokal laufender Appserver darf
+nicht denselben Host-Port belegen.
+
+Status, Logs und das Beenden des Stacks:
+
+```powershell
+docker compose --profile app logs app migrate
+docker compose --profile app down
+```
+
+Die Datenbankdaten bleiben im benannten Volume erhalten. Die Healthchecks prüfen
+PostgreSQL und den HTTP-Endpunkt `/health` des Appservers.
+Das mehrstufige `Dockerfile` erstellt getrennte Images für Migration und Appserver.
+Das App-Image enthält die übersetzte Anwendung und Produktionsabhängigkeiten und läuft
+als Benutzer `node`. Die `.dockerignore` begrenzt den Build-Kontext auf die benötigten
+Dateien; `.env` und lokale Zugangsdaten werden nicht ins Image kopiert.
+
+Die OIDC-Variablen werden zur Laufzeit an den Appcontainer weitergegeben. Issuer und
+JWKS müssen von dort aus über HTTPS erreichbar sein. Die unten beschriebene lokale
+HTTP-Konfiguration mit `127.0.0.1` ist für den Appstart mit `pnpm dev` vorgesehen.
+Mit leeren OIDC-Variablen funktionieren öffentliche Lesezugriffe; Schreibzugriffe sind
+deaktiviert.
+
 ## Prüfungen und GitHub Actions
 
 Die Abhängigkeiten mit dem versionierten Lockfile installieren:

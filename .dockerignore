@@ -1,0 +1,11 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.json
+!tsconfig.build.json
+!drizzle.config.ts
+!src/
+!src/**
+!drizzle/
+!drizzle/**
