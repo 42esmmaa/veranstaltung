@@ -1,10 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import { kategorieEnum } from '../db/schema.js';
-
-const maximumInteger = 2_147_483_647;
-const boundedInteger = (minimum: number, maximum = maximumInteger) =>
-  z.number().int().min(minimum).max(maximum);
+import { boundedInteger, date, text } from '../veranstaltung/validation/common-validation.js';
+import { VeranstaltungSchema } from '../veranstaltung/validation/veranstaltung-validation.js';
 
 const numericParameter = (minimum: number, maximum?: number) =>
   z
@@ -13,33 +10,6 @@ const numericParameter = (minimum: number, maximum?: number) =>
     .transform(Number)
     .pipe(boundedInteger(minimum, maximum));
 
-const text = (limit = 200) =>
-  z
-    .string()
-    .trim()
-    .min(1)
-    .max(limit)
-    .refine((value) => !value.includes('\0'), 'Nullzeichen sind nicht erlaubt.');
-
-const date = z.iso
-  .datetime({ offset: true })
-  .pipe(
-    z
-      .string()
-      .refine(
-        (value) =>
-          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
-          !value.startsWith('0000') &&
-          Number.isFinite(Date.parse(value)),
-        'ISO-8601-Zeitpunkt mit Sekunden und Offset erwartet.',
-      ),
-  )
-  .transform((value) => new Date(value));
-
-const category = z.enum(kategorieEnum.enumValues);
-const price = z
-  .string()
-  .regex(/^\d{1,6}(?:\.\d{1,2})?$/, 'Dezimalstring mit bis zu zwei Nachkommastellen erwartet.');
 const id = numericParameter(1);
 
 export const eventParams = z.object({ id });
@@ -52,31 +22,9 @@ export const pagination = z.object({
 
 export const eventQuery = pagination.extend({
   q: text().optional(),
-  kategorie: category.optional(),
+  kategorie: VeranstaltungSchema.shape.kategorie.optional(),
   ab: date.optional(),
   schlagwort: text(50).optional(),
-});
-
-export const eventInput = z.object({
-  titel: text(),
-  datum: date,
-  kategorie: category,
-  preis: price,
-  schlagwoerter: z.array(text(50)).max(30).default([]),
-});
-
-export const placeInput = z.object({
-  name: text(),
-  strasse: text(),
-  plz: text(20),
-  stadt: text(),
-});
-
-export const ticketInput = z.object({
-  bezeichnung: text(),
-  preis: price,
-  kontingent: boundedInteger(0),
-  aktiv: z.boolean().default(true),
 });
 
 export class ValidationError extends HTTPException {

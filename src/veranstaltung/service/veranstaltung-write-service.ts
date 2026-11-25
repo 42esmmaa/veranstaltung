@@ -4,22 +4,13 @@ import type { db } from '../../db/client.js';
 import { ownerScope } from '../../db/ownership.js';
 import { ort, ticket, veranstaltung } from '../../db/schema.js';
 import { NotFoundError } from './errors.js';
-
-export type VeranstaltungInput = Pick<
-  typeof veranstaltung.$inferSelect,
-  'titel' | 'datum' | 'kategorie' | 'preis' | 'schlagwoerter'
->;
-
-export type OrtInput = Pick<typeof ort.$inferSelect, 'name' | 'strasse' | 'plz' | 'stadt'>;
-
-export type TicketInput = Pick<
-  typeof ticket.$inferSelect,
-  'bezeichnung' | 'preis' | 'kontingent' | 'aktiv'
->;
+import type { OrtType } from '../validation/ort-validation.js';
+import type { TicketType } from '../validation/ticket-validation.js';
+import type { VeranstaltungType } from '../validation/veranstaltung-validation.js';
 
 export const insert = async (
   database: typeof db,
-  values: VeranstaltungInput,
+  values: VeranstaltungType,
   organizer: Organizer,
 ) => {
   const [row] = await database
@@ -35,7 +26,7 @@ export const insert = async (
 export const update = async (
   database: typeof db,
   id: number,
-  values: VeranstaltungInput,
+  values: VeranstaltungType,
   organizer: Organizer,
 ) => {
   const scope = ownerScope(database, organizer);
@@ -64,7 +55,7 @@ export const deleteFn = async (database: typeof db, id: number, organizer: Organ
 export const updateOrt = async (
   database: typeof db,
   veranstaltungId: number,
-  values: OrtInput,
+  values: OrtType,
   organizer: Organizer,
 ) =>
   database.transaction(async (tx) => {
@@ -118,7 +109,7 @@ export const deleteOrt = async (
 export const insertTicket = async (
   database: typeof db,
   veranstaltungId: number,
-  values: TicketInput,
+  values: TicketType,
   organizer: Organizer,
 ) =>
   database.transaction(async (tx) => {
@@ -145,7 +136,7 @@ export const updateTicket = async (
   database: typeof db,
   veranstaltungId: number,
   id: number,
-  values: TicketInput,
+  values: TicketType,
   organizer: Organizer,
 ) => {
   const scope = ownerScope(database, organizer);

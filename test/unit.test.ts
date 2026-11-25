@@ -5,7 +5,10 @@ import { app } from '../src/app.js';
 import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
 import type { db } from '../src/db/client.js';
 import { createEventRoutes } from '../src/rest/routes.js';
-import { eventInput, eventQuery, placeInput, ticketInput } from '../src/rest/input.js';
+import { eventQuery } from '../src/rest/input.js';
+import { OrtSchema } from '../src/veranstaltung/validation/ort-validation.js';
+import { TicketSchema } from '../src/veranstaltung/validation/ticket-validation.js';
+import { VeranstaltungSchema } from '../src/veranstaltung/validation/veranstaltung-validation.js';
 
 test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zugriff ab', async () => {
   const database = {} as typeof db;
@@ -59,21 +62,21 @@ test('Zod normalisiert gültige Werte und prüft die fachlichen Grenzen', () => 
     kategorie: 'KONZERT',
     preis: '12.50',
   };
-  assert.deepEqual(eventInput.parse(event), {
+  assert.deepEqual(VeranstaltungSchema.parse(event), {
     ...event,
     titel: 'Jazz',
     datum: new Date('2027-02-01T18:00:00Z'),
     schlagwoerter: [],
   });
   for (const patch of [{ preis: '1.001' }, { schlagwoerter: [1] }, { kategorie: 'UNBEKANNT' }]) {
-    assert.equal(eventInput.safeParse({ ...event, ...patch }).success, false);
+    assert.equal(VeranstaltungSchema.safeParse({ ...event, ...patch }).success, false);
   }
   assert.equal(
-    placeInput.safeParse({ name: 'Halle', strasse: 'Markt 1', plz: '12345' }).success,
+    OrtSchema.safeParse({ name: 'Halle', strasse: 'Markt 1', plz: '12345' }).success,
     false,
   );
   assert.equal(
-    ticketInput.safeParse({ bezeichnung: 'Standard', preis: '12.50', kontingent: -1 }).success,
+    TicketSchema.safeParse({ bezeichnung: 'Standard', preis: '12.50', kontingent: -1 }).success,
     false,
   );
   assert.deepEqual(eventQuery.parse({ limit: '10', q: ' Jazz ' }), {

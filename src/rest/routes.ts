@@ -21,14 +21,14 @@ import {
   updateOrt,
   updateTicket,
 } from '../veranstaltung/service/veranstaltung-write-service.js';
+import { OrtSchema } from '../veranstaltung/validation/ort-validation.js';
+import { TicketSchema } from '../veranstaltung/validation/ticket-validation.js';
+import { VeranstaltungSchema } from '../veranstaltung/validation/veranstaltung-validation.js';
 import {
-  eventInput,
   eventParams,
   eventQuery,
   pagination,
-  placeInput,
   readBody,
-  ticketInput,
   ticketParams,
   validate,
   ValidationError,
@@ -96,7 +96,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
   });
 
   routes.post('/', async (context) => {
-    const values = await readBody(eventInput, context.req.raw);
+    const values = await readBody(VeranstaltungSchema, context.req.raw);
     const row = await insert(database, values, context.get('organizer'));
     context.header('Location', `/veranstaltungen/${row.id}`);
     return context.json(row, 201);
@@ -109,7 +109,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.put('/:id', async (context) => {
     const { id } = validate(eventParams, context.req.param());
-    const values = await readBody(eventInput, context.req.raw);
+    const values = await readBody(VeranstaltungSchema, context.req.raw);
     const row = await update(database, id, values, context.get('organizer'));
     return context.json(row);
   });
@@ -127,7 +127,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.put('/:id/ort', async (context) => {
     const { id } = validate(eventParams, context.req.param());
-    const values = await readBody(placeInput, context.req.raw);
+    const values = await readBody(OrtSchema, context.req.raw);
     const result = await updateOrt(database, id, values, context.get('organizer'));
     if (result.created) {
       context.header('Location', `/veranstaltungen/${id}/ort`);
@@ -149,7 +149,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.post('/:id/tickets', async (context) => {
     const { id } = validate(eventParams, context.req.param());
-    const values = await readBody(ticketInput, context.req.raw);
+    const values = await readBody(TicketSchema, context.req.raw);
     const row = await insertTicket(database, id, values, context.get('organizer'));
     context.header('Location', `/veranstaltungen/${id}/tickets/${row.id}`);
     return context.json(row, 201);
@@ -163,7 +163,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.put(ticketPath, async (context) => {
     const { id, ticketId } = validate(ticketParams, context.req.param());
-    const values = await readBody(ticketInput, context.req.raw);
+    const values = await readBody(TicketSchema, context.req.raw);
     const row = await updateTicket(database, id, ticketId, values, context.get('organizer'));
     return context.json(row);
   });
