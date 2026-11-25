@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import { boundedInteger } from '../veranstaltung/validation/common-validation.js';
-import { SuchparameterSchema } from '../veranstaltung/validation/veranstaltung-validation.js';
+import { boundedInteger } from '../validation/common-validation.js';
+import { SuchparameterSchema } from '../validation/veranstaltung-validation.js';
 
 const numericParameter = (minimum: number, maximum?: number) =>
   z

@@ -1,33 +1,27 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { createApp } from '../src/app.mts';
 import { db } from '../src/db/client.js';
 import { ownerScope } from '../src/db/ownership.js';
 import { ort, ticket, veranstaltung } from '../src/db/schema.js';
-import { createEventRoutes } from '../src/rest/routes.js';
-import { createGraphqlApp } from '../src/veranstaltung/graphql/graphql-app.js';
 
 async function testRest() {
-  const graphql = createGraphqlApp(db);
+  const app = createApp(db, async (authorization) => {
+    if (authorization === 'Bearer owner') {
+      return { subject: 'rest-owner' };
+    }
+    if (authorization === 'Bearer foreign') {
+      return { subject: 'rest-foreign' };
+    }
+    throw new Error('Ungültig');
+  });
   const query = (value: string, variables: object = {}) =>
-    graphql.request('/graphql', {
+    app.request('/graphql', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ query: value, variables }),
     });
-  const app = new Hono().route(
-    '/veranstaltungen',
-    createEventRoutes(db, async (authorization) => {
-      if (authorization === 'Bearer owner') {
-        return { subject: 'rest-owner' };
-      }
-      if (authorization === 'Bearer foreign') {
-        return { subject: 'rest-foreign' };
-      }
-      throw new Error('Ungültig');
-    }),
-  );
   const request = (path: string, method: string, body?: object, token = 'owner') =>
     app.request(path, {
       method,
@@ -219,7 +213,7 @@ async function testRest() {
 }
 
 async function testGraphqlMutations() {
-  const graphql = createGraphqlApp(db, async (authorization) => {
+  const graphql = createApp(db, async (authorization) => {
     if (authorization === 'Bearer owner') {
       return { subject: 'graphql-owner' };
     }

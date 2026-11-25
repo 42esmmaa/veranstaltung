@@ -1,9 +1,7 @@
 import { serve } from '@hono/node-server';
-import { app } from './app.js';
+import { createApp } from './app.mts';
 import { createAccessTokenVerifier } from './auth.js';
 import { db } from './db/client.js';
-import { createEventRoutes } from './rest/routes.js';
-import { createGraphqlApp } from './veranstaltung/graphql/graphql-app.js';
 
 const port = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -28,8 +26,7 @@ const verify =
         keycloakOrganizerRole: 'veranstalter',
       })
     : undefined;
-app.route('/veranstaltungen', createEventRoutes(db, verify));
-app.route('/', createGraphqlApp(db, verify));
+const app = createApp(db, verify);
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.info(`Veranstaltungs-API läuft auf http://localhost:${info.port}`);

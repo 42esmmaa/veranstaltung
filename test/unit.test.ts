@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
-import { app } from '../src/app.js';
+import { createApp } from '../src/app.mts';
 import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
 import type { db } from '../src/db/client.js';
-import { createEventRoutes } from '../src/rest/routes.js';
-import { eventQuery } from '../src/rest/input.js';
+import { eventQuery } from '../src/veranstaltung/router/input.mts';
 import { OrtSchema } from '../src/veranstaltung/validation/ort-validation.js';
 import { TicketSchema } from '../src/veranstaltung/validation/ticket-validation.js';
 import { VeranstaltungSchema } from '../src/veranstaltung/validation/veranstaltung-validation.js';
@@ -13,9 +12,9 @@ import { createGraphqlApp } from '../src/veranstaltung/graphql/graphql-app.js';
 
 test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zugriff ab', async () => {
   const database = {} as typeof db;
-  const disabled = createEventRoutes(database);
-  assert.equal((await disabled.request('/', { method: 'POST' })).status, 503);
-  const routes = createEventRoutes(database, async (authorization) => {
+  const disabled = createApp(database);
+  assert.equal((await disabled.request('/veranstaltungen', { method: 'POST' })).status, 503);
+  const routes = createApp(database, async (authorization) => {
     if (authorization === 'Bearer reader') {
       throw new OrganizerRoleRequired();
     }
@@ -24,16 +23,16 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
     }
     return { subject: 'owner' };
   });
-  const unauthorized = await routes.request('/1/tickets', { method: 'POST' });
+  const unauthorized = await routes.request('/veranstaltungen/1/tickets', { method: 'POST' });
   assert.equal(unauthorized.status, 401);
   assert.equal(unauthorized.headers.get('WWW-Authenticate'), 'Bearer');
-  const forbidden = await routes.request('/', {
+  const forbidden = await routes.request('/veranstaltungen', {
     method: 'POST',
     headers: { Authorization: 'Bearer reader' },
   });
   assert.equal(forbidden.status, 403);
   assert.deepEqual(await forbidden.json(), { error: 'Rolle veranstalter erforderlich.' });
-  const response = await routes.request('/', {
+  const response = await routes.request('/veranstaltungen', {
     method: 'POST',
     headers: { Authorization: 'Bearer test', 'Content-Type': 'application/json' },
     body: JSON.stringify({ titel: 'Test', datum: '2027-02-30T12:00:00Z' }),
@@ -45,15 +44,27 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
     failure.details.map(({ feld }: { feld: string }) => feld),
     ['datum', 'kategorie', 'preis'],
   );
-  const query = await routes.request('/?limit=101&ab=morgen');
+  const query = await routes.request('/veranstaltungen?limit=101&ab=morgen');
   assert.equal(query.status, 400);
   assert.deepEqual(
     (await query.json()).details.map(({ feld }: { feld: string }) => feld),
     ['limit', 'ab'],
   );
-  const path = await routes.request('/1/tickets/0');
+  const path = await routes.request('/veranstaltungen/1/tickets/0');
   assert.equal(path.status, 400);
   assert.equal((await path.json()).details[0].feld, 'ticketId');
+  for (const [body, contentType, status] of [
+    ['kein JSON', 'application/json', 400],
+    ['{}', 'text/plain', 415],
+    [JSON.stringify({ titel: 'a'.repeat(16_384) }), 'application/json', 413],
+  ] as const) {
+    const invalidBody = await routes.request('/veranstaltungen', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test', 'Content-Type': contentType },
+      body,
+    });
+    assert.equal(invalidBody.status, status);
+  }
 });
 
 test('Zod normalisiert gültige Werte und prüft die fachlichen Grenzen', () => {
@@ -88,6 +99,7 @@ test('Zod normalisiert gültige Werte und prüft die fachlichen Grenzen', () => 
 });
 
 test('GET / und GET /health', async () => {
+  const app = createApp({} as typeof db);
   for (const [path, body] of [
     ['/', { message: 'Veranstaltungs-API ist bereit' }],
     ['/health', { status: 'ok' }],

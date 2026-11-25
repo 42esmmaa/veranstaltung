@@ -3,10 +3,11 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "rewriteRelativeImportExtensions": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "drizzle.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.mts", "test/**/*.ts", "drizzle.config.ts"]
 }
