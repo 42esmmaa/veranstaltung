@@ -10,17 +10,23 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 }
 
 const { OIDC_ISSUER, OIDC_AUDIENCE, OIDC_JWKS_URL } = process.env;
-if ([OIDC_ISSUER, OIDC_AUDIENCE, OIDC_JWKS_URL].some(Boolean) &&
-    !(OIDC_ISSUER && OIDC_AUDIENCE && OIDC_JWKS_URL)) {
+if (
+  [OIDC_ISSUER, OIDC_AUDIENCE, OIDC_JWKS_URL].some(Boolean) &&
+  !(OIDC_ISSUER && OIDC_AUDIENCE && OIDC_JWKS_URL)
+) {
   throw new Error('OIDC_ISSUER, OIDC_AUDIENCE und OIDC_JWKS_URL gemeinsam setzen.');
 }
-const verify = OIDC_ISSUER && OIDC_AUDIENCE && OIDC_JWKS_URL
-  ? createAccessTokenVerifier({
-    issuer: OIDC_ISSUER, audience: OIDC_AUDIENCE, jwksUrl: OIDC_JWKS_URL, algorithms: ['RS256'],
-    allowLoopbackHttp: process.env.OIDC_ALLOW_LOOPBACK_HTTP === 'true',
-    keycloakOrganizerRole: 'veranstalter',
-  })
-  : undefined;
+const verify =
+  OIDC_ISSUER && OIDC_AUDIENCE && OIDC_JWKS_URL
+    ? createAccessTokenVerifier({
+        issuer: OIDC_ISSUER,
+        audience: OIDC_AUDIENCE,
+        jwksUrl: OIDC_JWKS_URL,
+        algorithms: ['RS256'],
+        allowLoopbackHttp: process.env.OIDC_ALLOW_LOOPBACK_HTTP === 'true',
+        keycloakOrganizerRole: 'veranstalter',
+      })
+    : undefined;
 app.route('/veranstaltungen', createEventRoutes(db, verify));
 
 serve({ fetch: app.fetch, port }, (info) => {
