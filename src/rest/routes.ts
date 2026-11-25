@@ -8,6 +8,7 @@ import { ownerScope } from '../db/ownership.js';
 import { ort, ticket, veranstaltung } from '../db/schema.js';
 import { NotFoundError } from '../veranstaltung/service/errors.js';
 import { find, findById } from '../veranstaltung/service/veranstaltung-service.js';
+import { deleteFn, insert, update } from '../veranstaltung/service/veranstaltung-write-service.js';
 import {
   eventInput,
   eventParams,
@@ -91,10 +92,7 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
 
   routes.post('/', async (context) => {
     const values = await readBody(eventInput, context.req.raw);
-    const [row] = await database
-      .insert(veranstaltung)
-      .values({ ...values, veranstalterId: context.get('organizer').subject })
-      .returning();
+    const row = await insert(database, values, context.get('organizer'));
     context.header('Location', `/veranstaltungen/${row.id}`);
     return context.json(row, 201);
   });
@@ -107,19 +105,13 @@ export function createEventRoutes(database: typeof db, verify?: Verify) {
   routes.put('/:id', async (context) => {
     const { id } = validate(eventParams, context.req.param());
     const values = await readBody(eventInput, context.req.raw);
-    const scope = ownerScope(database, context.get('organizer'));
-    const [row] = await database
-      .update(veranstaltung)
-      .set(values)
-      .where(scope.veranstaltung(id))
-      .returning();
-    return context.json(required(row));
+    const row = await update(database, id, values, context.get('organizer'));
+    return context.json(row);
   });
 
   routes.delete('/:id', async (context) => {
     const { id } = validate(eventParams, context.req.param());
-    const scope = ownerScope(database, context.get('organizer'));
-    required((await database.delete(veranstaltung).where(scope.veranstaltung(id)).returning())[0]);
+    await deleteFn(database, id, context.get('organizer'));
     return context.body(null, 204);
   });
 

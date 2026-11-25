@@ -60,7 +60,13 @@ async function testRest() {
     assert.equal(foundEvent.datum, '2027-02-01T18:00:00.000Z');
     assert.equal((await request(eventPath, 'PUT', event, 'foreign')).status, 404);
     assert.equal((await request(eventPath, 'DELETE', undefined, 'foreign')).status, 404);
-    assert.equal((await request(eventPath, 'PUT', { ...event, titel: 'Neuer Titel' })).status, 200);
+    assert.equal((await (await app.request(eventPath)).json()).titel, event.titel);
+    const updated = await request(eventPath, 'PUT', { ...event, titel: 'Neuer Titel' });
+    assert.equal(updated.status, 200);
+    const updatedEvent = await updated.json();
+    assert.equal(updatedEvent.id, id);
+    assert.equal(updatedEvent.titel, 'Neuer Titel');
+    assert.equal(updatedEvent.veranstalterId, 'rest-owner');
 
     const placePath = eventPath + '/ort';
     const place = { name: 'Halle', strasse: 'Weg 1', plz: '12345', stadt: 'Ort' };
@@ -83,10 +89,17 @@ async function testRest() {
     assert.equal((await request(ticketPath, 'PUT', { ...entry, kontingent: 5 })).status, 200);
     assert.equal((await request(ticketPath, 'DELETE')).status, 204);
     assert.equal((await request(placePath, 'DELETE')).status, 204);
-    assert.equal((await request(eventPath, 'DELETE')).status, 204);
+    const deleted = await request(eventPath, 'DELETE');
+    assert.equal(deleted.status, 204);
+    assert.equal(await deleted.text(), '');
     const missing = await app.request(eventPath);
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: 'Ressource nicht gefunden.' });
+    for (const method of ['PUT', 'DELETE']) {
+      const missingWrite = await request(eventPath, method, method === 'PUT' ? event : undefined);
+      assert.equal(missingWrite.status, 404);
+      assert.deepEqual(await missingWrite.json(), { error: 'Ressource nicht gefunden.' });
+    }
   } finally {
     await db.delete(veranstaltung).where(eq(veranstaltung.id, id));
   }
