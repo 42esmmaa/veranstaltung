@@ -106,7 +106,21 @@ falscher Content-Type liefert 415. DELETE liefert bei Erfolg keinen Body.
 Eine einzelne Veranstaltung wird mit `veranstaltung(id: "1")` abgefragt. Die Suchfilter
 entsprechen REST; `limit` und `offset` sind bei GraphQL Zahlen. Preise werden als
 Dezimalstrings und Zeitpunkte in UTC ausgegeben. Ein fehlender Ort ergibt `null`.
-Schreiboperationen werden in einem späteren Schritt ergänzt.
+
+Die Mutationen `create(input: VeranstaltungInput!)`, `update(id: ID!, input: VeranstaltungInput!)`
+und `delete(id: ID!)` benötigen denselben Bearer-Token und dieselbe Veranstalterrolle wie REST.
+`create` und `update` liefern die Veranstaltung zurück; `delete` liefert `{ success: true }`.
+`update` ersetzt die bearbeitbaren Felder vollständig. Beispiel für den JSON-Body:
+
+```json
+{"query":"mutation($input: VeranstaltungInput!) { create(input: $input) { id titel } }","variables":{"input":{"titel":"Jazzabend","datum":"2027-02-01T19:00:00+01:00","kategorie":"KONZERT","preis":"12.50"}}}
+```
+
+Die Veranstalter-ID stammt aus dem Token. Änderungen und Löschungen sind auf eigene
+Veranstaltungen beschränkt. Fehler werden im GraphQL-Feld `errors` zurückgegeben:
+`UNAUTHENTICATED` bei fehlendem oder ungültigem Token, `FORBIDDEN` bei fehlender Rolle,
+`SERVICE_UNAVAILABLE` ohne OIDC-Konfiguration und `BAD_USER_INPUT` bei ungültigen Eingaben
+oder fehlenden beziehungsweise fremden Veranstaltungen.
 
 ## Lokal mit Keycloak anmelden
 

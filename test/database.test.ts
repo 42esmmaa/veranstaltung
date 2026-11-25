@@ -218,6 +218,78 @@ async function testRest() {
   }
 }
 
+async function testGraphqlMutations() {
+  const graphql = createGraphqlApp(db, async (authorization) => {
+    if (authorization === 'Bearer owner') {
+      return { subject: 'graphql-owner' };
+    }
+    if (authorization === 'Bearer foreign') {
+      return { subject: 'graphql-foreign' };
+    }
+    throw new Error('Ungültig');
+  });
+  const query = async (value: string, variables: object, token = 'owner') => {
+    const response = await graphql.request('/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: 'Bearer ' + token,
+      },
+      body: JSON.stringify({ query: value, variables }),
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const input = {
+    titel: ' GraphQL Jazz ',
+    datum: '2027-02-01T19:00:00+01:00',
+    kategorie: 'KONZERT',
+    preis: '12.50',
+  };
+  const fields = 'id titel datum preis schlagwoerter veranstalterId';
+  const create = `mutation($input: VeranstaltungInput!) { create(input: $input) { ${fields} } }`;
+  const update = `mutation($id: ID!, $input: VeranstaltungInput!) { update(id: $id, input: $input) { ${fields} } }`;
+  const remove = 'mutation($id: ID!) { delete(id: $id) { success } }';
+  const read = `query($id: ID!) { veranstaltung(id: $id) { ${fields} } }`;
+  const createdResult = await query(create, { input });
+  assert.equal(createdResult.errors, undefined);
+  const created = createdResult.data.create;
+  const id: string = created.id;
+  try {
+    assert.deepEqual(created, {
+      id,
+      titel: 'GraphQL Jazz',
+      datum: '2027-02-01T18:00:00.000Z',
+      preis: '12.50',
+      schlagwoerter: [],
+      veranstalterId: 'graphql-owner',
+    });
+    const changed = { ...input, titel: 'Neuer GraphQL-Titel', preis: '15.00' };
+    for (const [operation, variables] of [
+      [update, { id, input: changed }],
+      [remove, { id }],
+    ] as const) {
+      const foreign = await query(operation, variables, 'foreign');
+      assert.equal(foreign.errors[0].extensions.code, 'BAD_USER_INPUT');
+    }
+    assert.deepEqual(await query(read, { id }), { data: { veranstaltung: created } });
+    const updated = await query(update, { id, input: changed });
+    assert.deepEqual(updated, {
+      data: { update: { ...created, titel: changed.titel, preis: changed.preis } },
+    });
+    assert.deepEqual(await query(read, { id }), { data: { veranstaltung: updated.data.update } });
+    assert.deepEqual(await query(remove, { id }), { data: { delete: { success: true } } });
+    const missing = await query(read, { id });
+    assert.deepEqual(missing.data, { veranstaltung: null });
+    assert.equal(missing.errors[0].extensions.code, 'BAD_USER_INPUT');
+    const missingDelete = await query(remove, { id });
+    assert.equal(missingDelete.errors[0].extensions.code, 'BAD_USER_INPUT');
+  } finally {
+    await db.delete(veranstaltung).where(eq(veranstaltung.id, Number(id)));
+  }
+}
+
 test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
   try {
     await db.transaction(async (tx) => {
@@ -301,6 +373,7 @@ test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
       assert.equal(await tx.query.ticket.findFirst({ where: { id: entry.id } }), undefined);
     });
     await testRest();
+    await testGraphqlMutations();
   } finally {
     await db.$client.end();
   }

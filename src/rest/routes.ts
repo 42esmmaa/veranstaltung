@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
-import { OrganizerRoleRequired, type Organizer } from '../auth.js';
+import { OrganizerRoleRequired, type AccessTokenVerifier, type Organizer } from '../auth.js';
 import type { db } from '../db/client.js';
 import { NotFoundError } from '../veranstaltung/service/errors.js';
 import {
@@ -34,8 +34,6 @@ import {
   ValidationError,
 } from './input.js';
 
-type Verify = (authorization: string | null) => Promise<Organizer>;
-
 function databaseCode(error: unknown): unknown {
   if (!(error instanceof Error)) {
     return undefined;
@@ -43,7 +41,7 @@ function databaseCode(error: unknown): unknown {
   return 'code' in error ? error.code : databaseCode(error.cause);
 }
 
-export function createEventRoutes(database: typeof db, verify?: Verify) {
+export function createEventRoutes(database: typeof db, verify?: AccessTokenVerifier) {
   const routes = new Hono<{ Variables: { organizer: Organizer } }>();
 
   routes.onError((error, context) => {

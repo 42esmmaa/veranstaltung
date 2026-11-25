@@ -4,6 +4,24 @@ export const typeDefs = /* GraphQL */ `
     veranstaltungen(input: SuchParameterInput): [Veranstaltung!]!
   }
 
+  type Mutation {
+    create(input: VeranstaltungInput!): Veranstaltung
+    update(id: ID!, input: VeranstaltungInput!): Veranstaltung
+    delete(id: ID!): DeletePayload
+  }
+
+  type DeletePayload {
+    success: Boolean!
+  }
+
+  input VeranstaltungInput {
+    titel: String!
+    datum: String!
+    kategorie: Kategorie!
+    preis: String!
+    schlagwoerter: [String!]! = []
+  }
+
   type Veranstaltung {
     id: ID!
     titel: String!

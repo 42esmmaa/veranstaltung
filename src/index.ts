@@ -29,7 +29,7 @@ const verify =
       })
     : undefined;
 app.route('/veranstaltungen', createEventRoutes(db, verify));
-app.route('/', createGraphqlApp(db));
+app.route('/', createGraphqlApp(db, verify));
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.info(`Veranstaltungs-API läuft auf http://localhost:${info.port}`);

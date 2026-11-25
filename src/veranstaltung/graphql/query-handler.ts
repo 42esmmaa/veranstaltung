@@ -1,5 +1,3 @@
-import { GraphQLError } from 'graphql';
-import { ZodError } from 'zod';
 import type { db } from '../../db/client.js';
 import { NotFoundError } from '../service/errors.js';
 import {
@@ -9,6 +7,7 @@ import {
   findTicketsByVeranstaltungId,
 } from '../service/veranstaltung-service.js';
 import { SuchparameterSchema } from '../validation/veranstaltung-validation.js';
+import { handleError } from './errors.js';
 import {
   type SuchParameterInput,
   toNumber,
@@ -18,29 +17,11 @@ import {
 
 const pageableSchema = SuchparameterSchema.pick({ limit: true, offset: true });
 
-const queryError = (error: unknown): never => {
-  if (error instanceof NotFoundError) {
-    throw new GraphQLError(error.message, { extensions: { code: 'BAD_USER_INPUT' } });
-  }
-  if (error instanceof ZodError) {
-    throw new GraphQLError('Ungültige Eingaben.', {
-      extensions: {
-        code: 'BAD_USER_INPUT',
-        details: error.issues.map((issue) => ({
-          feld: issue.path.join('.') || 'input',
-          nachricht: issue.message,
-        })),
-      },
-    });
-  }
-  throw error;
-};
-
 export const veranstaltungHandler = async (database: typeof db, id: string) => {
   try {
     return toVeranstaltungType(await findById(database, toNumber(id)));
   } catch (error) {
-    return queryError(error);
+    return handleError(error);
   }
 };
 
@@ -52,7 +33,7 @@ export const veranstaltungenHandler = async (
     const rows = await find(database, toSuchparameter(input));
     return rows.map(toVeranstaltungType);
   } catch (error) {
-    return queryError(error);
+    return handleError(error);
   }
 };
 
@@ -63,7 +44,7 @@ export const ortHandler = async (database: typeof db, id: string) => {
     if (error instanceof NotFoundError) {
       return null;
     }
-    return queryError(error);
+    return handleError(error);
   }
 };
 
@@ -79,6 +60,6 @@ export const ticketsHandler = async (
       pageableSchema.parse(pageable),
     );
   } catch (error) {
-    return queryError(error);
+    return handleError(error);
   }
 };

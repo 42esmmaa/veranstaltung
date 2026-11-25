@@ -2,9 +2,14 @@ import { z } from 'zod';
 import type { veranstaltung } from '../../db/schema.js';
 import type { Suchparameter } from '../service/suchparameter.js';
 import { boundedInteger } from '../validation/common-validation.js';
-import { SuchparameterSchema } from '../validation/veranstaltung-validation.js';
+import {
+  SuchparameterSchema,
+  type VeranstaltungSchema,
+} from '../validation/veranstaltung-validation.js';
 
 type VeranstaltungSelect = typeof veranstaltung.$inferSelect;
+
+export type VeranstaltungInput = z.input<typeof VeranstaltungSchema>;
 
 export type Veranstaltung = Omit<
   VeranstaltungSelect,

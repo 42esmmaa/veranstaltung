@@ -15,6 +15,8 @@ export interface Organizer {
   readonly subject: string;
 }
 
+export type AccessTokenVerifier = (authorization: string | null) => Promise<Organizer>;
+
 export class OrganizerRoleRequired extends Error {}
 
 export function createAccessTokenVerifier(
