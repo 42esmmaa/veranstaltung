@@ -166,6 +166,33 @@ Veranstaltungen beschränkt. Fehler werden im GraphQL-Feld `errors` zurückgegeb
 `SERVICE_UNAVAILABLE` ohne OIDC-Konfiguration und `BAD_USER_INPUT` bei ungültigen Eingaben
 oder fehlenden beziehungsweise fremden Veranstaltungen.
 
+Das vollständige GraphQL-Schema steht in
+[`src/veranstaltung/graphql/schema.ts`](src/veranstaltung/graphql/schema.ts).
+Orte und Tickets können ebenfalls mit Veranstalterrolle bearbeitet werden:
+
+| Mutation | Verhalten |
+|---|---|
+| `updateOrt(veranstaltungId: ID!, input: OrtInput!)` | Ort anlegen oder vollständig ersetzen; liefert den Ort |
+| `deleteOrt(veranstaltungId: ID!)` | Ort löschen; liefert `{ success: true }` |
+| `createTicket(veranstaltungId: ID!, input: TicketInput!)` | Ticket anlegen; liefert das Ticket |
+| `updateTicket(veranstaltungId: ID!, id: ID!, input: TicketInput!)` | Ticket vollständig ersetzen; liefert das Ticket |
+| `deleteTicket(veranstaltungId: ID!, id: ID!)` | Ticket löschen; liefert `{ success: true }` |
+
+`veranstaltungId` bezeichnet jeweils die eigene Veranstaltung, `id` bei Tickets die Ticket-ID.
+Die Eingabefelder entsprechen den REST-Beispielen. Beispielkörper für einen Ort und ein Ticket:
+
+```json
+{"query":"mutation($input: OrtInput!) { updateOrt(veranstaltungId: \"1\", input: $input) { id name } }","variables":{"input":{"name":"Stadthalle","strasse":"Markt 1","plz":"12345","stadt":"Beispielstadt"}}}
+```
+
+```json
+{"query":"mutation($input: TicketInput!) { createTicket(veranstaltungId: \"1\", input: $input) { id bezeichnung aktiv } }","variables":{"input":{"bezeichnung":"Standard","preis":"12.50","kontingent":25}}}
+```
+
+Ein einzelnes Ticket lässt sich innerhalb seiner Veranstaltung abfragen:
+`{ veranstaltung(id: "1") { ticket(id: "2") { id bezeichnung preis } } }`.
+Eine falsche Zuordnung von Ticket und Veranstaltung wird wie eine fehlende Ressource behandelt.
+
 ## Lokal mit Keycloak anmelden
 
 Trage eigene lokale Zugangsdaten für `KC_BOOTSTRAP_ADMIN_USERNAME` und

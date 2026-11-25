@@ -4,6 +4,7 @@ import {
   find,
   findById,
   findOrtByVeranstaltungId,
+  findTicketById,
   findTicketsByVeranstaltungId,
 } from '../service/veranstaltung-service.js';
 import { SuchparameterSchema } from '../validation/veranstaltung-validation.js';
@@ -59,6 +60,14 @@ export const ticketsHandler = async (
       toNumber(id),
       pageableSchema.parse(pageable),
     );
+  } catch (error) {
+    return handleError(error);
+  }
+};
+
+export const ticketHandler = async (database: typeof db, veranstaltungId: string, id: string) => {
+  try {
+    return await findTicketById(database, toNumber(veranstaltungId), toNumber(id));
   } catch (error) {
     return handleError(error);
   }

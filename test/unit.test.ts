@@ -164,7 +164,7 @@ test('RS256-Keycloak-Tokens verwenden zwischengespeicherte Signaturschlüssel', 
   assert.equal((await response.json()).errors[0].extensions.code, 'BAD_USER_INPUT');
 });
 
-test('GraphQL schützt alle Veranstaltungsmutationen vor dem DB-Zugriff', async () => {
+test('GraphQL schützt alle Mutationen vor dem DB-Zugriff', async () => {
   const database = {} as typeof db;
   const disabled = createGraphqlApp(database);
   const graphql = createGraphqlApp(database, async (authorization) => {
@@ -176,13 +176,20 @@ test('GraphQL schützt alle Veranstaltungsmutationen vor dem DB-Zugriff', async 
     }
     return { subject: 'owner' };
   });
-  const input = {
+  const event = {
     titel: 'Test',
     datum: '2027-02-30T12:00:00Z',
     kategorie: 'KONZERT',
     preis: '12.50',
   };
-  const request = async (target: typeof graphql, query: string, authorization?: string) => {
+  const place = { name: '', strasse: 'Weg 1', plz: '12345', stadt: 'Ort' };
+  const ticket = { bezeichnung: 'Standard', preis: '12.50', kontingent: -1 };
+  const request = async (
+    target: typeof graphql,
+    query: string,
+    input: object,
+    authorization?: string,
+  ) => {
     const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'application/json' });
     if (authorization) {
       headers.set('Authorization', authorization);
@@ -194,19 +201,39 @@ test('GraphQL schützt alle Veranstaltungsmutationen vor dem DB-Zugriff', async 
     });
     return response.json();
   };
-  for (const query of [
-    'mutation($input: VeranstaltungInput!) { create(input: $input) { id } }',
-    'mutation($input: VeranstaltungInput!) { update(id: "1", input: $input) { id } }',
-    'mutation { delete(id: "0") { success } }',
-  ]) {
-    assert.equal((await request(disabled, query)).errors[0].extensions.code, 'SERVICE_UNAVAILABLE');
+  for (const [query, input] of [
+    ['mutation($input: VeranstaltungInput!) { create(input: $input) { id } }', event],
+    ['mutation($input: VeranstaltungInput!) { update(id: "1", input: $input) { id } }', event],
+    ['mutation { delete(id: "0") { success } }', {}],
+    [
+      'mutation($input: OrtInput!) { updateOrt(veranstaltungId: "1", input: $input) { id } }',
+      place,
+    ],
+    ['mutation { deleteOrt(veranstaltungId: "0") { success } }', {}],
+    [
+      'mutation($input: TicketInput!) { createTicket(veranstaltungId: "1", input: $input) { id } }',
+      ticket,
+    ],
+    [
+      'mutation($input: TicketInput!) { updateTicket(veranstaltungId: "1", id: "1", input: $input) { id } }',
+      ticket,
+    ],
+    ['mutation { deleteTicket(veranstaltungId: "1", id: "0") { success } }', {}],
+  ] as const) {
+    assert.equal(
+      (await request(disabled, query, input)).errors[0].extensions.code,
+      'SERVICE_UNAVAILABLE',
+    );
     for (const [authorization, code] of [
       [undefined, 'UNAUTHENTICATED'],
       ['Bearer invalid', 'UNAUTHENTICATED'],
       ['Bearer reader', 'FORBIDDEN'],
       ['Bearer owner', 'BAD_USER_INPUT'],
     ] as const) {
-      assert.equal((await request(graphql, query, authorization)).errors[0].extensions.code, code);
+      assert.equal(
+        (await request(graphql, query, input, authorization)).errors[0].extensions.code,
+        code,
+      );
     }
   }
 });

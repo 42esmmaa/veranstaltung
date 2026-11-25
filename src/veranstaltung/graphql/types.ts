@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { veranstaltung } from '../../db/schema.js';
 import type { Suchparameter } from '../service/suchparameter.js';
 import { boundedInteger } from '../validation/common-validation.js';
+import type { OrtSchema } from '../validation/ort-validation.js';
+import type { TicketSchema } from '../validation/ticket-validation.js';
 import {
   SuchparameterSchema,
   type VeranstaltungSchema,
@@ -10,6 +12,8 @@ import {
 type VeranstaltungSelect = typeof veranstaltung.$inferSelect;
 
 export type VeranstaltungInput = z.input<typeof VeranstaltungSchema>;
+export type OrtInput = z.input<typeof OrtSchema>;
+export type TicketInput = z.input<typeof TicketSchema>;
 
 export type Veranstaltung = Omit<
   VeranstaltungSelect,

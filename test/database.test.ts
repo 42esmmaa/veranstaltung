@@ -256,6 +256,7 @@ async function testGraphqlMutations() {
   assert.equal(createdResult.errors, undefined);
   const created = createdResult.data.create;
   const id: string = created.id;
+  let otherEventId: string | undefined;
   try {
     assert.deepEqual(created, {
       id,
@@ -265,6 +266,105 @@ async function testGraphqlMutations() {
       schlagwoerter: [],
       veranstalterId: 'graphql-owner',
     });
+
+    const writePlace =
+      'mutation($veranstaltungId: ID!, $input: OrtInput!) { updateOrt(veranstaltungId: $veranstaltungId, input: $input) { id name strasse plz stadt veranstaltungId } }';
+    const removePlace =
+      'mutation($veranstaltungId: ID!) { deleteOrt(veranstaltungId: $veranstaltungId) { success } }';
+    const ticketFields = 'id bezeichnung preis kontingent aktiv veranstaltungId';
+    const createTicket = `mutation($veranstaltungId: ID!, $input: TicketInput!) { createTicket(veranstaltungId: $veranstaltungId, input: $input) { ${ticketFields} } }`;
+    const updateTicket = `mutation($veranstaltungId: ID!, $ticketId: ID!, $input: TicketInput!) { updateTicket(veranstaltungId: $veranstaltungId, id: $ticketId, input: $input) { ${ticketFields} } }`;
+    const removeTicket =
+      'mutation($veranstaltungId: ID!, $ticketId: ID!) { deleteTicket(veranstaltungId: $veranstaltungId, id: $ticketId) { success } }';
+    const placeInput = { name: ' Halle ', strasse: 'Weg 1', plz: '12345', stadt: 'Ort' };
+    const ticketInput = { bezeichnung: 'Standard', preis: '12.50', kontingent: 10 };
+    const placeResult = await query(writePlace, { veranstaltungId: id, input: placeInput });
+    assert.equal(placeResult.errors, undefined);
+    const place = placeResult.data.updateOrt;
+    assert.deepEqual(place, { ...placeInput, name: 'Halle', id: place.id, veranstaltungId: id });
+    const ticketResult = await query(createTicket, { veranstaltungId: id, input: ticketInput });
+    assert.equal(ticketResult.errors, undefined);
+    const createdTicket = ticketResult.data.createTicket;
+    assert.deepEqual(createdTicket, {
+      ...ticketInput,
+      id: createdTicket.id,
+      aktiv: true,
+      veranstaltungId: id,
+    });
+    for (const [operation, variables] of [
+      [writePlace, { veranstaltungId: id, input: { ...placeInput, name: 'Fremd' } }],
+      [removePlace, { veranstaltungId: id }],
+      [createTicket, { veranstaltungId: id, input: ticketInput }],
+      [
+        updateTicket,
+        {
+          veranstaltungId: id,
+          ticketId: createdTicket.id,
+          input: { ...ticketInput, kontingent: 99 },
+        },
+      ],
+      [removeTicket, { veranstaltungId: id, ticketId: createdTicket.id }],
+    ] as const) {
+      const foreign = await query(operation, variables, 'foreign');
+      assert.equal(foreign.errors[0].extensions.code, 'BAD_USER_INPUT');
+    }
+    const readRelations =
+      'query($id: ID!, $ticketId: ID!) { veranstaltung(id: $id) { ort { name } tickets { id kontingent } ticket(id: $ticketId) { id kontingent } } }';
+    assert.deepEqual(await query(readRelations, { id, ticketId: createdTicket.id }), {
+      data: {
+        veranstaltung: {
+          ort: { name: 'Halle' },
+          tickets: [{ id: createdTicket.id, kontingent: 10 }],
+          ticket: { id: createdTicket.id, kontingent: 10 },
+        },
+      },
+    });
+    const replacedPlace = await query(writePlace, {
+      veranstaltungId: id,
+      input: { ...placeInput, name: 'Neue Halle' },
+    });
+    assert.deepEqual(replacedPlace, { data: { updateOrt: { ...place, name: 'Neue Halle' } } });
+    const updatedTicket = await query(updateTicket, {
+      veranstaltungId: id,
+      ticketId: createdTicket.id,
+      input: { ...ticketInput, kontingent: 5 },
+    });
+    assert.deepEqual(updatedTicket, {
+      data: { updateTicket: { ...createdTicket, kontingent: 5 } },
+    });
+
+    const otherEvent = await query(create, { input: { ...input, titel: 'Andere Veranstaltung' } });
+    assert.equal(otherEvent.errors, undefined);
+    otherEventId = otherEvent.data.create.id;
+    const wrongParent = await query(
+      'query($id: ID!, $ticketId: ID!) { veranstaltung(id: $id) { ticket(id: $ticketId) { id } } }',
+      { id: otherEventId, ticketId: createdTicket.id },
+    );
+    assert.equal(wrongParent.errors[0].extensions.code, 'BAD_USER_INPUT');
+    for (const operation of [updateTicket, removeTicket]) {
+      const wrongWrite = await query(operation, {
+        veranstaltungId: otherEventId,
+        ticketId: createdTicket.id,
+        input: ticketInput,
+      });
+      assert.equal(wrongWrite.errors[0].extensions.code, 'BAD_USER_INPUT');
+    }
+    const afterWrongParent = await query(readRelations, { id, ticketId: createdTicket.id });
+    assert.equal(afterWrongParent.data.veranstaltung.ticket.kontingent, 5);
+    for (const [operation, variables, field] of [
+      [removePlace, { veranstaltungId: id }, 'deleteOrt'],
+      [removeTicket, { veranstaltungId: id, ticketId: createdTicket.id }, 'deleteTicket'],
+    ] as const) {
+      assert.deepEqual(await query(operation, variables), { data: { [field]: { success: true } } });
+      const missingRelation = await query(operation, variables);
+      assert.equal(missingRelation.errors[0].extensions.code, 'BAD_USER_INPUT');
+    }
+    const emptyRelations = await query(
+      'query($id: ID!) { veranstaltung(id: $id) { ort { id } tickets { id } } }',
+      { id },
+    );
+    assert.deepEqual(emptyRelations, { data: { veranstaltung: { ort: null, tickets: [] } } });
+
     const changed = { ...input, titel: 'Neuer GraphQL-Titel', preis: '15.00' };
     for (const [operation, variables] of [
       [update, { id, input: changed }],
@@ -285,7 +385,17 @@ async function testGraphqlMutations() {
     assert.equal(missing.errors[0].extensions.code, 'BAD_USER_INPUT');
     const missingDelete = await query(remove, { id });
     assert.equal(missingDelete.errors[0].extensions.code, 'BAD_USER_INPUT');
+    for (const [operation, relationInput] of [
+      [writePlace, placeInput],
+      [createTicket, ticketInput],
+    ] as const) {
+      const missingParent = await query(operation, { veranstaltungId: id, input: relationInput });
+      assert.equal(missingParent.errors[0].extensions.code, 'BAD_USER_INPUT');
+    }
   } finally {
+    if (otherEventId !== undefined) {
+      await db.delete(veranstaltung).where(eq(veranstaltung.id, Number(otherEventId)));
+    }
     await db.delete(veranstaltung).where(eq(veranstaltung.id, Number(id)));
   }
 }
