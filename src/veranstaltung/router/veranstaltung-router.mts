@@ -27,7 +27,18 @@ export function createRouter(database: typeof db) {
   router.get('/:id', async (c) => {
     const { id } = validate(eventParams, c.req.param());
     const row = await findById(database, id);
-    c.header('ETag', formatVersionTag(row.version));
+    const etag = formatVersionTag(row.version);
+    c.header('ETag', etag);
+    const ifNoneMatch = c.req.header('If-None-Match');
+    if (
+      ifNoneMatch?.trim() === '*' ||
+      ifNoneMatch?.split(',').some((value) => {
+        const tag = value.trim();
+        return tag === etag || tag === `W/${etag}`;
+      })
+    ) {
+      return c.body(null, 304);
+    }
     return c.json(row);
   });
 

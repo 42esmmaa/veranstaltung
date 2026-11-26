@@ -69,6 +69,22 @@ async function testRest() {
     assert.equal(foundEvent.datum, '2027-02-01T18:00:00.000Z');
     const etag = found.headers.get('ETag');
     assert.equal(etag, '"0"');
+    for (const tag of [etag, `W/${etag}`, `"99", ${etag}`, '*']) {
+      const cached = await app.request(eventPath, { headers: { 'If-None-Match': tag } });
+      assert.equal(cached.status, 304);
+      assert.equal(cached.headers.get('ETag'), etag);
+      assert.equal(await cached.text(), '');
+    }
+    const head = await app.request(eventPath, {
+      method: 'HEAD',
+      headers: { 'If-None-Match': etag },
+    });
+    assert.equal(head.status, 304);
+    assert.equal(head.headers.get('ETag'), etag);
+    assert.equal(await head.text(), '');
+    const differentTag = await app.request(eventPath, { headers: { 'If-None-Match': '"99"' } });
+    assert.equal(differentTag.status, 200);
+    assert.deepEqual(await differentTag.json(), foundEvent);
     assert.equal((await request(eventPath, 'PUT', event, 'foreign', etag)).status, 404);
     assert.equal((await request(eventPath, 'PUT', event, 'foreign', '"9"')).status, 404);
     assert.equal((await request(eventPath, 'DELETE', undefined, 'foreign')).status, 404);
@@ -86,6 +102,14 @@ async function testRest() {
     assert.equal(updatedEvent.version, 1);
     assert.equal(updatedEvent.veranstalterId, 'rest-owner');
     assert.deepEqual(await (await app.request(eventPath)).json(), updatedEvent);
+    const changedResponse = await app.request(eventPath, { headers: { 'If-None-Match': etag } });
+    assert.equal(changedResponse.status, 200);
+    assert.equal(changedResponse.headers.get('ETag'), '"1"');
+    assert.deepEqual(await changedResponse.json(), updatedEvent);
+    const unchanged = await app.request(eventPath, { headers: { 'If-None-Match': '"1"' } });
+    assert.equal(unchanged.status, 304);
+    assert.equal(unchanged.headers.get('ETag'), '"1"');
+    assert.equal(await unchanged.text(), '');
 
     const placePath = eventPath + '/ort';
     const place = { name: 'Halle', strasse: 'Weg 1', plz: '12345', stadt: 'Ort' };
@@ -206,6 +230,8 @@ async function testRest() {
     const missing = await app.request(eventPath);
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: 'Ressource nicht gefunden.' });
+    const missingCached = await app.request(eventPath, { headers: { 'If-None-Match': '*' } });
+    assert.equal(missingCached.status, 404);
     const graphqlMissing = await query('query($id: ID!) { veranstaltung(id: $id) { id } }', {
       id: String(id),
     });

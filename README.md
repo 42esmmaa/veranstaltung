@@ -162,6 +162,13 @@ Beim Anlegen, Lesen und Aktualisieren einer einzelnen Veranstaltung liefert REST
 Für `PUT /veranstaltungen/:id` muss der Client den zuletzt gelesenen ETag als `If-Match`
 mitsenden, zum Beispiel `If-Match: "0"`. Ein fehlender Header ergibt 428, ein ungültiger
 Wert 400 und eine veraltete Version 412. Nach einem Konflikt die Veranstaltung erneut laden.
+
+Bei `GET /veranstaltungen/:id` kann der Client den zuletzt erhaltenen ETag mit
+`If-None-Match` mitsenden. Bei Übereinstimmung antwortet die API mit 304 ohne Body und
+dem aktuellen ETag; bei einer Änderung mit 200 und den neuen Daten. Auch schwache Tags
+wie `W/"0"`, eine Liste von ETags und `*` für eine vorhandene Veranstaltung werden
+berücksichtigt, entsprechend [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2).
+
 Beispielkörper für eine Veranstaltung, einen Ort und ein Ticket:
 
 ```json
