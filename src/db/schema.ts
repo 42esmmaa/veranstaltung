@@ -27,6 +27,7 @@ export const veranstaltung = veranstaltungSchema.table(
   'veranstaltung',
   {
     id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    version: integer().default(0).notNull(),
     titel: text().notNull(),
     datum: timestamp({ withTimezone: true }).notNull(),
     kategorie: kategorieEnum().notNull(),

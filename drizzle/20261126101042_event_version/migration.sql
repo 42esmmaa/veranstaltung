@@ -1,0 +1,1 @@
+ALTER TABLE "veranstaltung"."veranstaltung" ADD COLUMN "version" integer DEFAULT 0 NOT NULL;
