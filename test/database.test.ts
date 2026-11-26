@@ -30,7 +30,7 @@ async function testRest() {
         'Content-Type': 'application/json',
         ...(etag === undefined ? {} : { 'If-Match': etag }),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   const path = '/veranstaltungen';
   const event = {
@@ -78,6 +78,7 @@ async function testRest() {
         veranstalterId: 'rest-owner',
       })
       .returning();
+    assert.ok(secondEvent);
     try {
       const first = await (await app.request(searchPath + '&size=1&page=1')).json();
       const second = await (await app.request(searchPath + '&size=1&page=2')).json();
@@ -139,8 +140,10 @@ async function testRest() {
       detail: 'Die Veranstaltung wurde zwischenzeitlich geändert.',
     });
     const winner = edits.findIndex(({ status }) => status === 204);
-    assert.equal(edits[winner].headers.get('ETag'), '"1"');
-    assert.equal(await edits[winner].text(), '');
+    const successful = edits[winner];
+    assert.ok(successful);
+    assert.equal(successful.headers.get('ETag'), '"1"');
+    assert.equal(await successful.text(), '');
     const updatedEvent = await (await app.request(eventPath)).json();
     assert.equal(updatedEvent.id, id);
     assert.equal(updatedEvent.titel, titles[winner]);
@@ -532,6 +535,7 @@ test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
           aktualisiert: new Date('2020-01-01T00:00:00Z'),
         })
         .returning();
+      assert.ok(event);
       const address = {
         name: 'Halle',
         strasse: 'Weg 1',
@@ -540,6 +544,7 @@ test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
         veranstaltungId: event.id,
       };
       const [place] = await tx.insert(ort).values(address).returning();
+      assert.ok(place);
       const [entry] = await tx
         .insert(ticket)
         .values({
@@ -549,6 +554,7 @@ test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
           veranstaltungId: event.id,
         })
         .returning();
+      assert.ok(entry);
 
       await assert.rejects(
         tx.transaction(async (savepoint) => {
@@ -582,6 +588,7 @@ test('Migration, Relationen, Eigentümer und Kaskaden', async () => {
         .set({ titel: 'Neu' })
         .where(owner.veranstaltung(event.id))
         .returning();
+      assert.ok(updated);
       assert.ok(updated.aktualisiert > event.aktualisiert);
       const result = await tx.query.veranstaltung.findFirst({
         where: { id: event.id },

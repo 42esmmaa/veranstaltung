@@ -69,10 +69,10 @@ export function createAccessTokenVerifier(
       throw new Error('Verpflichtende Token-Claims fehlen.');
     }
     if (organizerRole) {
-      if (payload.typ !== 'Bearer') {
+      if (payload['typ'] !== 'Bearer') {
         throw new Error('Keycloak-Access-Token erforderlich.');
       }
-      const realmAccess = payload.realm_access;
+      const realmAccess = payload['realm_access'];
       if (
         typeof realmAccess !== 'object' ||
         realmAccess === null ||

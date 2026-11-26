@@ -9,8 +9,8 @@ export type Pageable = {
 };
 
 export type PageableProps = {
-  readonly number?: string | number;
-  readonly size?: string | number;
+  readonly number?: string | number | undefined;
+  readonly size?: string | number | undefined;
 };
 
 export const createPageable = ({ number, size }: PageableProps): Pageable => {

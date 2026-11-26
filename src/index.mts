@@ -3,7 +3,7 @@ import { createApp } from './app.mts';
 import { createAccessTokenVerifier } from './auth.js';
 import { db } from './db/client.js';
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env['PORT'] ?? 3000);
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   throw new Error('PORT muss eine ganze Zahl zwischen 1 und 65535 sein.');
 }
@@ -22,7 +22,7 @@ const verify =
         audience: OIDC_AUDIENCE,
         jwksUrl: OIDC_JWKS_URL,
         algorithms: ['RS256'],
-        allowLoopbackHttp: process.env.OIDC_ALLOW_LOOPBACK_HTTP === 'true',
+        allowLoopbackHttp: process.env['OIDC_ALLOW_LOOPBACK_HTTP'] === 'true',
         keycloakOrganizerRole: 'veranstalter',
       })
     : undefined;

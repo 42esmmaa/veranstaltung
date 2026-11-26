@@ -71,5 +71,8 @@ export const find = async (
     .limit(limit)
     .offset(offset);
   const [total] = await database.select({ value: count() }).from(veranstaltung).where(conditions);
+  if (total === undefined) {
+    throw new Error('Trefferzahl wurde nicht ermittelt.');
+  }
   return { content, totalElements: total.value };
 };

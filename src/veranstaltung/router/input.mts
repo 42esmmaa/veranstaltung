@@ -44,11 +44,11 @@ export function readExpectedVersion(header: string | undefined) {
 }
 
 export class ValidationError extends HTTPException {
-  constructor(
-    readonly details: { feld: string; nachricht: string }[],
-    statusCode: 400 | 422 = 400,
-  ) {
+  readonly details: { feld: string; nachricht: string }[];
+
+  constructor(details: { feld: string; nachricht: string }[], statusCode: 400 | 422 = 400) {
     super(statusCode, { message: 'Ungültige Eingaben.' });
+    this.details = details;
   }
 }
 
@@ -72,7 +72,7 @@ export function validate<Schema extends z.ZodType>(
 
 export async function readBody<Schema extends z.ZodType>(schema: Schema, request: Request) {
   if (
-    request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json'
+    request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json'
   ) {
     throw new HTTPException(415, { message: 'Content-Type application/json erforderlich.' });
   }

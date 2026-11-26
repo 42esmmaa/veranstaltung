@@ -7,6 +7,6 @@ export default defineConfig({
   out: './drizzle',
   schemaFilter: ['veranstaltung'],
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? '',
+    url: process.env['DATABASE_URL'] ?? '',
   },
 });

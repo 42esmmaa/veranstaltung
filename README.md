@@ -88,6 +88,11 @@ Die Abhängigkeiten mit dem versionierten Lockfile installieren:
 pnpm install --frozen-lockfile
 ```
 
+Die TypeScript-Konfiguration übernimmt die strengen Prüfungen aus der Dozentenvorlage
+(`@tsconfig/strictest` und `@tsconfig/node-ts`) als explizite Optionen. Dazu gehören
+geprüfte Array-Zugriffe, genaue optionale Eigenschaften und das Erkennen unbenutzten Codes.
+Die Node.js-24-Konfiguration unseres Projekts bleibt erhalten.
+
 Diese Prüfungen benötigen keine laufenden Dienste:
 
 | Befehl | Prüfung |
