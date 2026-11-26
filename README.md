@@ -146,16 +146,23 @@ Ohne OIDC-Konfiguration sind Schreibzugriffe deaktiviert.
 
 | Methode | URL | Erfolg |
 |---|---|---|
-| GET | `/veranstaltungen` | 200, Liste |
+| GET | `/veranstaltungen` | 200, Seite mit `content` und `page` |
 | POST | `/veranstaltungen` | 201 mit Location |
 | GET, PUT, DELETE | `/veranstaltungen/:id` | 200, 204, 204 |
 | GET, PUT, DELETE | `/veranstaltungen/:id/ort` | 200, 201 beim Anlegen oder 204 beim Ersetzen, 204 |
 | GET, POST | `/veranstaltungen/:id/tickets` | 200, 201 mit Location |
 | GET, PUT, DELETE | `/veranstaltungen/:id/tickets/:ticketId` | 200, 204, 204 |
 
-Listen unterstützen `limit` (Standard 20, maximal 100) und `offset` (Standard 0).
-Veranstaltungen lassen sich zusätzlich nach `q` (Titel), `kategorie`, `ab` (Zeitpunkt) und
-`schlagwort` filtern. Beispiel: `GET /veranstaltungen?kategorie=KONZERT&q=Jazz&limit=10`.
+Die Veranstaltungssuche unterstützt wie die Dozentenvorlage `page` (erste Seite: 1)
+und `size` (Standard 5, maximal 100). Fehlende oder ungültige Werte verwenden die
+Standardwerte; ein Offset außerhalb des PostgreSQL-Integerbereichs führt zur ersten Seite.
+Die Antwort enthält `content` und `page` mit `number` (ab 0), `size`, `totalElements`
+und `totalPages`. Die Trefferzahl berücksichtigt alle Suchfilter, auch bei einer leeren Seite.
+Veranstaltungen lassen sich nach `q` (Titel), `kategorie`, `ab` (Zeitpunkt) und
+`schlagwort` filtern. Beispiel: `GET /veranstaltungen?kategorie=KONZERT&q=Jazz&page=1&size=10`.
+Die bisherigen Parameter `limit` und `offset` werden für diese REST-Suche durch `size`
+und `page` ersetzt. Ticketlisten verwenden weiterhin `limit` (Standard 20, maximal 100)
+und `offset` (Standard 0) und liefern ein Array.
 
 POST und PUT erwarten `Content-Type: application/json`. PUT ersetzt die bearbeitbaren Felder.
 Erfolgreiche Schreibzugriffe liefern keinen Antwortkörper. Beim Anlegen verweist der
@@ -222,7 +229,8 @@ keinen Body. GraphQL verwendet das unter GraphQL beschriebene `errors`-Format.
 ```
 
 Eine einzelne Veranstaltung wird mit `veranstaltung(id: "1")` abgefragt. Die Suchfilter
-entsprechen REST; `limit` und `offset` sind bei GraphQL Zahlen. Preise werden als
+entsprechen REST; GraphQL liefert weiterhin Listen und verwendet `limit` (Standard 20,
+maximal 100) und `offset` (Standard 0) als Zahlen. Preise werden als
 Dezimalstrings und Zeitpunkte in UTC ausgegeben. Ein fehlender Ort ergibt `null`.
 
 Die Mutationen `create(input: VeranstaltungInput!)`,

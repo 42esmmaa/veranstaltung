@@ -1,7 +1,8 @@
-import { and, asc, eq, gte, ilike, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gte, ilike, sql } from 'drizzle-orm';
 import type { db } from '../../db/client.js';
 import { ticket, veranstaltung } from '../../db/schema.js';
 import { NotFoundError } from './errors.js';
+import type { Slice } from './slice.mts';
 import type { Suchparameter } from './suchparameter.js';
 
 export const findById = async (database: typeof db, id: number) => {
@@ -52,7 +53,7 @@ export const findTicketById = async (database: typeof db, veranstaltungId: numbe
 export const find = async (
   database: typeof db,
   { q, kategorie, ab, schlagwort, limit, offset }: Suchparameter,
-) => {
+): Promise<Slice<typeof veranstaltung.$inferSelect>> => {
   const term = q === undefined ? undefined : q.replace(/[\\%_]/g, '\\$&');
   const conditions = and(
     term === undefined ? undefined : ilike(veranstaltung.titel, `%${term}%`),
@@ -62,11 +63,13 @@ export const find = async (
       ? undefined
       : sql`${veranstaltung.schlagwoerter} @> ${JSON.stringify([schlagwort])}::jsonb`,
   );
-  return database
+  const content = await database
     .select()
     .from(veranstaltung)
     .where(conditions)
     .orderBy(asc(veranstaltung.datum), asc(veranstaltung.id))
     .limit(limit)
     .offset(offset);
+  const [total] = await database.select({ value: count() }).from(veranstaltung).where(conditions);
+  return { content, totalElements: total.value };
 };

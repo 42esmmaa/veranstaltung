@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { db } from '../../db/client.js';
+import { createPageable } from '../service/pageable.mts';
 import {
   find,
   findById,
@@ -15,13 +16,20 @@ import {
   ticketParams,
   validate,
 } from './input.mts';
+import { createPage } from './page.mts';
 
 export function createRouter(database: typeof db) {
   const router = new Hono();
 
   router.get('/', async (c) => {
     const suchparameter = validate(eventQuery, c.req.query());
-    return c.json(await find(database, suchparameter));
+    const pageable = createPageable({ number: c.req.query('page'), size: c.req.query('size') });
+    const slice = await find(database, {
+      ...suchparameter,
+      limit: pageable.size,
+      offset: pageable.number * pageable.size,
+    });
+    return c.json(createPage(slice, pageable));
   });
 
   router.get('/:id', async (c) => {

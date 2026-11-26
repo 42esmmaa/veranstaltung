@@ -31,8 +31,8 @@ export const veranstaltungenHandler = async (
   input?: SuchParameterInput | null,
 ) => {
   try {
-    const rows = await find(database, toSuchparameter(input));
-    return rows.map(toVeranstaltungType);
+    const { content } = await find(database, toSuchparameter(input));
+    return content.map(toVeranstaltungType);
   } catch (error) {
     return handleError(error);
   }

@@ -58,11 +58,43 @@ async function testRest() {
     const searchPath = path + '?q=Jazz_%25&schlagwort=rest-jazz&kategorie=KONZERT';
     const list = await app.request(searchPath);
     assert.equal(list.status, 200);
-    assert.ok((await list.json()).some((row: { id: number }) => row.id === id));
-    for (const suffix of ['&ab=2027-02-02T00:00:00Z', '&limit=1&offset=1']) {
+    const firstPage = await list.json();
+    assert.deepEqual(firstPage.content, [createdEvent]);
+    assert.deepEqual(firstPage.page, { number: 0, size: 5, totalElements: 1, totalPages: 1 });
+    for (const [suffix, metadata] of [
+      ['&ab=2027-02-02T00:00:00Z', { number: 0, size: 5, totalElements: 0, totalPages: 0 }],
+      ['&size=1&page=2', { number: 1, size: 1, totalElements: 1, totalPages: 1 }],
+    ] as const) {
       const empty = await app.request(searchPath + suffix);
       assert.equal(empty.status, 200);
-      assert.deepEqual(await empty.json(), []);
+      assert.deepEqual(await empty.json(), { content: [], page: metadata });
+    }
+    const [secondEvent] = await db
+      .insert(veranstaltung)
+      .values({
+        ...event,
+        datum: new Date('2027-02-03T19:00:00Z'),
+        kategorie: 'KONZERT',
+        veranstalterId: 'rest-owner',
+      })
+      .returning();
+    try {
+      const first = await (await app.request(searchPath + '&size=1&page=1')).json();
+      const second = await (await app.request(searchPath + '&size=1&page=2')).json();
+      assert.deepEqual(
+        first.content.map((row: { id: number }) => row.id),
+        [id],
+      );
+      assert.deepEqual(
+        second.content.map((row: { id: number }) => row.id),
+        [secondEvent.id],
+      );
+      assert.deepEqual(second.page, { number: 1, size: 1, totalElements: 2, totalPages: 2 });
+      const fallback = await (await app.request(searchPath + '&page=abc&size=101')).json();
+      assert.equal(fallback.content.length, 2);
+      assert.deepEqual(fallback.page, { number: 0, size: 5, totalElements: 2, totalPages: 1 });
+    } finally {
+      await db.delete(veranstaltung).where(eq(veranstaltung.id, secondEvent.id));
     }
     const found = await app.request(eventPath);
     assert.equal(found.status, 200);

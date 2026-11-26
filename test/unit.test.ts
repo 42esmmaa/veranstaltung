@@ -5,6 +5,8 @@ import { createApp } from '../src/app.mts';
 import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
 import type { db } from '../src/db/client.js';
 import { eventQuery } from '../src/veranstaltung/router/input.mts';
+import { createPage } from '../src/veranstaltung/router/page.mts';
+import { createPageable } from '../src/veranstaltung/service/pageable.mts';
 import { OrtSchema } from '../src/veranstaltung/validation/ort-validation.js';
 import { TicketSchema } from '../src/veranstaltung/validation/ticket-validation.js';
 import { VeranstaltungSchema } from '../src/veranstaltung/validation/veranstaltung-validation.js';
@@ -57,11 +59,11 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
     failure.errors.map(({ feld }: { feld: string }) => feld),
     ['datum', 'kategorie', 'preis'],
   );
-  const query = await routes.request('/veranstaltungen?limit=101&ab=morgen');
+  const query = await routes.request('/veranstaltungen?ab=morgen');
   assert.equal(query.status, 400);
   assert.deepEqual(
     (await query.json()).errors.map(({ feld }: { feld: string }) => feld),
-    ['limit', 'ab'],
+    ['ab'],
   );
   const path = await routes.request('/veranstaltungen/1/tickets/0');
   assert.equal(path.status, 400);
@@ -165,11 +167,26 @@ test('Zod normalisiert gültige Werte und prüft die fachlichen Grenzen', () => 
     TicketSchema.safeParse({ bezeichnung: 'Standard', preis: '12.50', kontingent: -1 }).success,
     false,
   );
-  assert.deepEqual(eventQuery.parse({ limit: '10', q: ' Jazz ' }), {
-    limit: 10,
-    offset: 0,
-    q: 'Jazz',
-  });
+  assert.deepEqual(eventQuery.parse({ q: ' Jazz ' }), { q: 'Jazz' });
+});
+
+test('Seiteneinteilung verwendet die Vorgaben der Dozentenvorlage', () => {
+  assert.deepEqual(createPageable({}), { number: 0, size: 5 });
+  assert.deepEqual(createPageable({ number: '2', size: '10' }), { number: 1, size: 10 });
+  for (const number of ['0', '-1', '1.5', 'abc', 'Infinity', '9007199254740992']) {
+    assert.equal(createPageable({ number }).number, 0);
+  }
+  for (const size of ['0', '-1', '101', '1.5', 'abc']) {
+    assert.equal(createPageable({ size }).size, 5);
+  }
+  assert.equal(createPageable({ number: '2147483648', size: '100' }).number, 0);
+  assert.deepEqual(
+    createPage({ content: ['Treffer'], totalElements: 11 }, { number: 2, size: 5 }),
+    {
+      content: ['Treffer'],
+      page: { number: 2, size: 5, totalElements: 11, totalPages: 3 },
+    },
+  );
 });
 
 test('GET / und GET /health', async () => {

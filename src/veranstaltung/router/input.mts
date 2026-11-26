@@ -20,7 +20,7 @@ export const pagination = z.object({
   offset: numericParameter(0).default(0),
 });
 
-export const eventQuery = SuchparameterSchema.extend(pagination.shape);
+export const eventQuery = SuchparameterSchema.omit({ limit: true, offset: true });
 
 const versionTag = z
   .string()
