@@ -158,6 +158,10 @@ Veranstaltungen lassen sich zusätzlich nach `q` (Titel), `kategorie`, `ab` (Zei
 `schlagwort` filtern. Beispiel: `GET /veranstaltungen?kategorie=KONZERT&q=Jazz&limit=10`.
 
 POST und PUT erwarten `Content-Type: application/json`. PUT ersetzt die bearbeitbaren Felder.
+Beim Anlegen, Lesen und Aktualisieren einer einzelnen Veranstaltung liefert REST deren `ETag`.
+Für `PUT /veranstaltungen/:id` muss der Client den zuletzt gelesenen ETag als `If-Match`
+mitsenden, zum Beispiel `If-Match: "0"`. Ein fehlender Header ergibt 428, ein ungültiger
+Wert 400 und eine veraltete Version 412. Nach einem Konflikt die Veranstaltung erneut laden.
 Beispielkörper für eine Veranstaltung, einen Ort und ein Ticket:
 
 ```json
@@ -172,7 +176,7 @@ Beispielkörper für eine Veranstaltung, einen Ort und ein Ticket:
 {"bezeichnung":"Standard","preis":"12.50","kontingent":25,"aktiv":true}
 ```
 
-Die Veranstaltungsantwort ergänzt beispielsweise `"id":1`, `"veranstalterId":"user-42"`,
+Die Veranstaltungsantwort ergänzt beispielsweise `"id":1`, `"version":0`, `"veranstalterId":"user-42"`,
 `"erstellt":"2027-01-02T10:00:00.000Z"` und `"aktualisiert":"2027-01-02T10:00:00.000Z"`.
 Zeitpunkte werden in UTC ausgegeben. Preise bleiben Dezimalstrings.
 
@@ -196,10 +200,13 @@ Eine einzelne Veranstaltung wird mit `veranstaltung(id: "1")` abgefragt. Die Suc
 entsprechen REST; `limit` und `offset` sind bei GraphQL Zahlen. Preise werden als
 Dezimalstrings und Zeitpunkte in UTC ausgegeben. Ein fehlender Ort ergibt `null`.
 
-Die Mutationen `create(input: VeranstaltungInput!)`, `update(id: ID!, input: VeranstaltungInput!)`
+Die Mutationen `create(input: VeranstaltungInput!)`,
+`update(id: ID!, version: Int!, input: VeranstaltungInput!)`
 und `delete(id: ID!)` benötigen denselben Bearer-Token und dieselbe Veranstalterrolle wie REST.
 `create` und `update` liefern die Veranstaltung zurück; `delete` liefert `{ success: true }`.
-`update` ersetzt die bearbeitbaren Felder vollständig. Beispiel für den JSON-Body:
+`update` ersetzt die bearbeitbaren Felder vollständig. Die erwartete `version` kann in der
+Veranstaltungsabfrage mit ausgewählt werden. Eine veraltete Version ergibt `CONFLICT`.
+Beispiel für den JSON-Body:
 
 ```json
 {"query":"mutation($input: VeranstaltungInput!) { create(input: $input) { id titel } }","variables":{"input":{"titel":"Jazzabend","datum":"2027-02-01T19:00:00+01:00","kategorie":"KONZERT","preis":"12.50"}}}
