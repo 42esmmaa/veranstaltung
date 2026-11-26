@@ -65,6 +65,18 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
     });
     assert.equal(invalidBody.status, status);
   }
+  for (const [etag, status] of [
+    [undefined, 428],
+    ['W/"0"', 400],
+    ['"2147483648"', 400],
+  ] as const) {
+    const headers = new Headers({ Authorization: 'Bearer test' });
+    if (etag !== undefined) {
+      headers.set('If-Match', etag);
+    }
+    const result = await routes.request('/veranstaltungen/1', { method: 'PUT', headers });
+    assert.equal(result.status, status);
+  }
 });
 
 test('Zod normalisiert gültige Werte und prüft die fachlichen Grenzen', () => {
@@ -215,7 +227,10 @@ test('GraphQL schützt alle Mutationen vor dem DB-Zugriff', async () => {
   };
   for (const [query, input] of [
     ['mutation($input: VeranstaltungInput!) { create(input: $input) { id } }', event],
-    ['mutation($input: VeranstaltungInput!) { update(id: "1", input: $input) { id } }', event],
+    [
+      'mutation($input: VeranstaltungInput!) { update(id: "1", version: 0, input: $input) { id } }',
+      event,
+    ],
     ['mutation { delete(id: "0") { success } }', {}],
     [
       'mutation($input: OrtInput!) { updateOrt(veranstaltungId: "1", input: $input) { id } }',

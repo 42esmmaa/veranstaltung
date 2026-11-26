@@ -10,6 +10,7 @@ import {
   updateOrt,
   updateTicket,
 } from '../service/veranstaltung-write-service.js';
+import { boundedInteger } from '../validation/common-validation.js';
 import { OrtSchema } from '../validation/ort-validation.js';
 import { TicketSchema } from '../validation/ticket-validation.js';
 import { VeranstaltungSchema } from '../validation/veranstaltung-validation.js';
@@ -21,6 +22,8 @@ import {
   toNumber,
   toVeranstaltungType,
 } from './types.js';
+
+const versionSchema = boundedInteger(0);
 
 export const createHandler = async (
   database: typeof db,
@@ -38,12 +41,15 @@ export const createHandler = async (
 export const updateHandler = async (
   database: typeof db,
   id: string,
+  version: number,
   input: VeranstaltungInput,
   organizer: Organizer,
 ) => {
   try {
     const values = VeranstaltungSchema.parse(input);
-    return toVeranstaltungType(await update(database, toNumber(id), values, organizer));
+    const expectedVersion = versionSchema.parse(version);
+    const row = await update(database, toNumber(id), expectedVersion, values, organizer);
+    return toVeranstaltungType(row);
   } catch (error) {
     return handleError(error);
   }

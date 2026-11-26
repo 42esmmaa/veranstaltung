@@ -7,7 +7,7 @@ import { createGraphqlApp } from './veranstaltung/graphql/graphql-app.js';
 import { ValidationError } from './veranstaltung/router/input.mts';
 import { createRouter as createVeranstaltungRouter } from './veranstaltung/router/veranstaltung-router.mts';
 import { createRouter as createVeranstaltungWriteRouter } from './veranstaltung/router/veranstaltung-write-router.mts';
-import { NotFoundError } from './veranstaltung/service/errors.js';
+import { NotFoundError, StaleVersionError } from './veranstaltung/service/errors.js';
 
 function databaseCode(error: unknown): unknown {
   if (!(error instanceof Error)) {
@@ -55,6 +55,9 @@ export function createApp(database: typeof db, verify?: AccessTokenVerifier) {
   app.onError((error, c) => {
     if (error instanceof NotFoundError) {
       return c.json({ error: error.message }, 404);
+    }
+    if (error instanceof StaleVersionError) {
+      return c.json({ error: error.message }, 412);
     }
     if (error instanceof ValidationError) {
       return c.json({ error: error.message, details: error.details }, 400);

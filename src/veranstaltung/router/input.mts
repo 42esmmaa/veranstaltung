@@ -22,6 +22,22 @@ export const pagination = z.object({
 
 export const eventQuery = SuchparameterSchema.extend(pagination.shape);
 
+const versionTag = z.string().regex(/^"\d+"$/).transform((value) => value.slice(1, -1));
+const ifMatch = versionTag.pipe(numericParameter(0));
+
+export const formatVersionTag = (version: number) => `"${version}"`;
+
+export function readExpectedVersion(header: string | undefined) {
+  if (header === undefined) {
+    throw new HTTPException(428, { message: 'Header If-Match erforderlich.' });
+  }
+  const version = ifMatch.safeParse(header);
+  if (!version.success || formatVersionTag(version.data) !== header) {
+    throw new HTTPException(400, { message: 'If-Match muss den ETag der Veranstaltung enthalten.' });
+  }
+  return version.data;
+}
+
 export class ValidationError extends HTTPException {
   constructor(readonly details: { feld: string; nachricht: string }[]) {
     super(400, { message: 'Ungültige Eingaben.' });

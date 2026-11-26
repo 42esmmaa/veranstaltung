@@ -46,9 +46,9 @@ export function createGraphqlApp(database: typeof db, verify?: AccessTokenVerifi
       ) => createHandler(database, input, await rolesRequired(request, verify)),
       update: async (
         _: unknown,
-        { id, input }: { id: string; input: VeranstaltungInput },
+        { id, version, input }: { id: string; version: number; input: VeranstaltungInput },
         { request }: GraphqlContext,
-      ) => updateHandler(database, id, input, await rolesRequired(request, verify)),
+      ) => updateHandler(database, id, version, input, await rolesRequired(request, verify)),
       delete: async (_: unknown, { id }: { id: string }, { request }: GraphqlContext) =>
         deleteHandler(database, id, await rolesRequired(request, verify)),
       updateOrt: async (

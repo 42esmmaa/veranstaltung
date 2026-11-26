@@ -14,7 +14,14 @@ import {
 import { OrtSchema } from '../validation/ort-validation.js';
 import { TicketSchema } from '../validation/ticket-validation.js';
 import { VeranstaltungSchema } from '../validation/veranstaltung-validation.js';
-import { eventParams, readBody, ticketParams, validate } from './input.mts';
+import {
+  eventParams,
+  formatVersionTag,
+  readBody,
+  readExpectedVersion,
+  ticketParams,
+  validate,
+} from './input.mts';
 
 export function createRouter(database: typeof db) {
   const router = new Hono<{ Variables: { organizer: Organizer } }>();
@@ -23,13 +30,16 @@ export function createRouter(database: typeof db) {
     const values = await readBody(VeranstaltungSchema, c.req.raw);
     const row = await insert(database, values, c.get('organizer'));
     c.header('Location', `/veranstaltungen/${row.id}`);
+    c.header('ETag', formatVersionTag(row.version));
     return c.json(row, 201);
   });
 
   router.put('/:id', async (c) => {
     const { id } = validate(eventParams, c.req.param());
+    const expectedVersion = readExpectedVersion(c.req.header('If-Match'));
     const values = await readBody(VeranstaltungSchema, c.req.raw);
-    const row = await update(database, id, values, c.get('organizer'));
+    const row = await update(database, id, expectedVersion, values, c.get('organizer'));
+    c.header('ETag', formatVersionTag(row.version));
     return c.json(row);
   });
 

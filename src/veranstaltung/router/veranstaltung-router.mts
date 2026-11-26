@@ -7,7 +7,14 @@ import {
   findTicketById,
   findTicketsByVeranstaltungId,
 } from '../service/veranstaltung-service.js';
-import { eventParams, eventQuery, pagination, ticketParams, validate } from './input.mts';
+import {
+  eventParams,
+  eventQuery,
+  formatVersionTag,
+  pagination,
+  ticketParams,
+  validate,
+} from './input.mts';
 
 export function createRouter(database: typeof db) {
   const router = new Hono();
@@ -19,7 +26,9 @@ export function createRouter(database: typeof db) {
 
   router.get('/:id', async (c) => {
     const { id } = validate(eventParams, c.req.param());
-    return c.json(await findById(database, id));
+    const row = await findById(database, id);
+    c.header('ETag', formatVersionTag(row.version));
+    return c.json(row);
   });
 
   router.get('/:id/ort', async (c) => {

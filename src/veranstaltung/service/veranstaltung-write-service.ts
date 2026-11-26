@@ -1,9 +1,9 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Organizer } from '../../auth.js';
 import type { db } from '../../db/client.js';
 import { ownerScope } from '../../db/ownership.js';
 import { ort, ticket, veranstaltung } from '../../db/schema.js';
-import { NotFoundError } from './errors.js';
+import { NotFoundError, StaleVersionError } from './errors.js';
 import type { OrtType } from '../validation/ort-validation.js';
 import type { TicketType } from '../validation/ticket-validation.js';
 import type { VeranstaltungType } from '../validation/veranstaltung-validation.js';
@@ -26,19 +26,27 @@ export const insert = async (
 export const update = async (
   database: typeof db,
   id: number,
+  expectedVersion: number,
   values: VeranstaltungType,
   organizer: Organizer,
 ) => {
-  const scope = ownerScope(database, organizer);
+  const ownedEvent = ownerScope(database, organizer).veranstaltung(id);
   const [row] = await database
     .update(veranstaltung)
-    .set(values)
-    .where(scope.veranstaltung(id))
+    .set({ ...values, version: sql`${veranstaltung.version} + 1` })
+    .where(and(ownedEvent, eq(veranstaltung.version, expectedVersion)))
     .returning();
-  if (row === undefined) {
-    throw new NotFoundError('Ressource nicht gefunden.');
+  if (row !== undefined) {
+    return row;
   }
-  return row;
+  const [existing] = await database
+    .select({ id: veranstaltung.id })
+    .from(veranstaltung)
+    .where(ownedEvent);
+  if (existing !== undefined) {
+    throw new StaleVersionError('Die Veranstaltung wurde zwischenzeitlich geändert.');
+  }
+  throw new NotFoundError('Ressource nicht gefunden.');
 };
 
 export const deleteFn = async (database: typeof db, id: number, organizer: Organizer) => {

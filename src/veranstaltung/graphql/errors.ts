@@ -1,8 +1,11 @@
 import { GraphQLError } from 'graphql';
 import { ZodError } from 'zod';
-import { NotFoundError } from '../service/errors.js';
+import { NotFoundError, StaleVersionError } from '../service/errors.js';
 
 export const handleError = (error: unknown): never => {
+  if (error instanceof StaleVersionError) {
+    throw new GraphQLError(error.message, { extensions: { code: 'CONFLICT' } });
+  }
   if (error instanceof NotFoundError) {
     throw new GraphQLError(error.message, { extensions: { code: 'BAD_USER_INPUT' } });
   }

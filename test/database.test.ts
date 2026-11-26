@@ -22,10 +22,14 @@ async function testRest() {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ query: value, variables }),
     });
-  const request = (path: string, method: string, body?: object, token = 'owner') =>
+  const request = (path: string, method: string, body?: object, token = 'owner', etag?: string) =>
     app.request(path, {
       method,
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        ...(etag === undefined ? {} : { 'If-Match': etag }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   const path = '/veranstaltungen';
@@ -46,6 +50,8 @@ async function testRest() {
     assert.equal(createdEvent.veranstalterId, 'rest-owner');
     const eventPath = `${path}/${id}`;
     assert.equal(created.headers.get('Location'), eventPath);
+    assert.equal(createdEvent.version, 0);
+    assert.equal(created.headers.get('ETag'), '"0"');
     const searchPath = path + '?q=Jazz_%25&schlagwort=rest-jazz&kategorie=KONZERT';
     const list = await app.request(searchPath);
     assert.equal(list.status, 200);
@@ -61,15 +67,25 @@ async function testRest() {
     assert.equal(foundEvent.id, id);
     assert.equal(foundEvent.titel, event.titel);
     assert.equal(foundEvent.datum, '2027-02-01T18:00:00.000Z');
-    assert.equal((await request(eventPath, 'PUT', event, 'foreign')).status, 404);
+    const etag = found.headers.get('ETag');
+    assert.equal(etag, '"0"');
+    assert.equal((await request(eventPath, 'PUT', event, 'foreign', etag)).status, 404);
+    assert.equal((await request(eventPath, 'PUT', event, 'foreign', '"9"')).status, 404);
     assert.equal((await request(eventPath, 'DELETE', undefined, 'foreign')).status, 404);
     assert.equal((await (await app.request(eventPath)).json()).titel, event.titel);
-    const updated = await request(eventPath, 'PUT', { ...event, titel: 'Neuer Titel' });
-    assert.equal(updated.status, 200);
-    const updatedEvent = await updated.json();
+    const titles = ['Neuer Titel A', 'Neuer Titel B'];
+    const edits = await Promise.all(
+      titles.map((titel) => request(eventPath, 'PUT', { ...event, titel }, 'owner', etag)),
+    );
+    assert.deepEqual(edits.map(({ status }) => status).sort(), [200, 412]);
+    const winner = edits.findIndex(({ status }) => status === 200);
+    assert.equal(edits[winner].headers.get('ETag'), '"1"');
+    const updatedEvent = await edits[winner].json();
     assert.equal(updatedEvent.id, id);
-    assert.equal(updatedEvent.titel, 'Neuer Titel');
+    assert.equal(updatedEvent.titel, titles[winner]);
+    assert.equal(updatedEvent.version, 1);
     assert.equal(updatedEvent.veranstalterId, 'rest-owner');
+    assert.deepEqual(await (await app.request(eventPath)).json(), updatedEvent);
 
     const placePath = eventPath + '/ort';
     const place = { name: 'Halle', strasse: 'Weg 1', plz: '12345', stadt: 'Ort' };
@@ -130,7 +146,7 @@ async function testRest() {
       data: {
         veranstaltung: {
           id: String(id),
-          titel: 'Neuer Titel',
+          titel: updatedEvent.titel,
           datum: '2027-02-01T18:00:00.000Z',
           preis: '12.50',
           schlagwoerter: ['rest-jazz'],
@@ -200,7 +216,13 @@ async function testRest() {
     assert.equal((await app.request(ticketsPath)).status, 404);
     assert.equal((await request(ticketsPath, 'POST', entry)).status, 404);
     for (const method of ['PUT', 'DELETE']) {
-      const missingWrite = await request(eventPath, method, method === 'PUT' ? event : undefined);
+      const missingWrite = await request(
+        eventPath,
+        method,
+        method === 'PUT' ? event : undefined,
+        'owner',
+        '"1"',
+      );
       assert.equal(missingWrite.status, 404);
       assert.deepEqual(await missingWrite.json(), { error: 'Ressource nicht gefunden.' });
     }
@@ -241,9 +263,11 @@ async function testGraphqlMutations() {
     kategorie: 'KONZERT',
     preis: '12.50',
   };
-  const fields = 'id titel datum preis schlagwoerter veranstalterId';
+  const fields = 'id version titel datum preis schlagwoerter veranstalterId';
   const create = `mutation($input: VeranstaltungInput!) { create(input: $input) { ${fields} } }`;
-  const update = `mutation($id: ID!, $input: VeranstaltungInput!) { update(id: $id, input: $input) { ${fields} } }`;
+  const update = `mutation($id: ID!, $version: Int!, $input: VeranstaltungInput!) {
+    update(id: $id, version: $version, input: $input) { ${fields} }
+  }`;
   const remove = 'mutation($id: ID!) { delete(id: $id) { success } }';
   const read = `query($id: ID!) { veranstaltung(id: $id) { ${fields} } }`;
   const createdResult = await query(create, { input });
@@ -254,6 +278,7 @@ async function testGraphqlMutations() {
   try {
     assert.deepEqual(created, {
       id,
+      version: 0,
       titel: 'GraphQL Jazz',
       datum: '2027-02-01T18:00:00.000Z',
       preis: '12.50',
@@ -361,17 +386,20 @@ async function testGraphqlMutations() {
 
     const changed = { ...input, titel: 'Neuer GraphQL-Titel', preis: '15.00' };
     for (const [operation, variables] of [
-      [update, { id, input: changed }],
+      [update, { id, version: created.version, input: changed }],
       [remove, { id }],
     ] as const) {
       const foreign = await query(operation, variables, 'foreign');
       assert.equal(foreign.errors[0].extensions.code, 'BAD_USER_INPUT');
     }
     assert.deepEqual(await query(read, { id }), { data: { veranstaltung: created } });
-    const updated = await query(update, { id, input: changed });
+    const updated = await query(update, { id, version: created.version, input: changed });
     assert.deepEqual(updated, {
-      data: { update: { ...created, titel: changed.titel, preis: changed.preis } },
+      data: { update: { ...created, version: 1, titel: changed.titel, preis: changed.preis } },
     });
+    const stale = await query(update, { id, version: created.version, input });
+    assert.deepEqual(stale.data, { update: null });
+    assert.equal(stale.errors[0].extensions.code, 'CONFLICT');
     assert.deepEqual(await query(read, { id }), { data: { veranstaltung: updated.data.update } });
     assert.deepEqual(await query(remove, { id }), { data: { delete: { success: true } } });
     const missing = await query(read, { id });

@@ -6,7 +6,7 @@ export const typeDefs = /* GraphQL */ `
 
   type Mutation {
     create(input: VeranstaltungInput!): Veranstaltung
-    update(id: ID!, input: VeranstaltungInput!): Veranstaltung
+    update(id: ID!, version: Int!, input: VeranstaltungInput!): Veranstaltung
     delete(id: ID!): DeletePayload
     updateOrt(veranstaltungId: ID!, input: OrtInput!): Ort
     deleteOrt(veranstaltungId: ID!): DeletePayload
@@ -43,6 +43,7 @@ export const typeDefs = /* GraphQL */ `
 
   type Veranstaltung {
     id: ID!
+    version: Int!
     titel: String!
     datum: String!
     kategorie: Kategorie!
