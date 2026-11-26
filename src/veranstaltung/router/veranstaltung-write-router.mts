@@ -14,6 +14,7 @@ import {
 import { OrtSchema } from '../validation/ort-validation.js';
 import { TicketSchema } from '../validation/ticket-validation.js';
 import { VeranstaltungSchema } from '../validation/veranstaltung-validation.js';
+import { createBaseUrl } from './create-base-url.mts';
 import {
   eventParams,
   formatVersionTag,
@@ -29,9 +30,9 @@ export function createRouter(database: typeof db) {
   router.post('/', async (c) => {
     const values = await readBody(VeranstaltungSchema, c.req.raw);
     const row = await insert(database, values, c.get('organizer'));
-    c.header('Location', `/veranstaltungen/${row.id}`);
+    c.header('Location', `${createBaseUrl(c.req)}/${row.id}`);
     c.header('ETag', formatVersionTag(row.version));
-    return c.json(row, 201);
+    return c.body(null, 201);
   });
 
   router.put('/:id', async (c) => {
@@ -40,7 +41,7 @@ export function createRouter(database: typeof db) {
     const values = await readBody(VeranstaltungSchema, c.req.raw);
     const row = await update(database, id, expectedVersion, values, c.get('organizer'));
     c.header('ETag', formatVersionTag(row.version));
-    return c.json(row);
+    return c.body(null, 204);
   });
 
   router.delete('/:id', async (c) => {
@@ -54,9 +55,9 @@ export function createRouter(database: typeof db) {
     const values = await readBody(OrtSchema, c.req.raw);
     const result = await updateOrt(database, id, values, c.get('organizer'));
     if (result.created) {
-      c.header('Location', `/veranstaltungen/${id}/ort`);
+      c.header('Location', createBaseUrl(c.req));
     }
-    return c.json(result.row, result.created ? 201 : 200);
+    return c.body(null, result.created ? 201 : 204);
   });
 
   router.delete('/:id/ort', async (c) => {
@@ -69,15 +70,15 @@ export function createRouter(database: typeof db) {
     const { id } = validate(eventParams, c.req.param());
     const values = await readBody(TicketSchema, c.req.raw);
     const row = await insertTicket(database, id, values, c.get('organizer'));
-    c.header('Location', `/veranstaltungen/${id}/tickets/${row.id}`);
-    return c.json(row, 201);
+    c.header('Location', `${createBaseUrl(c.req)}/${row.id}`);
+    return c.body(null, 201);
   });
 
   router.put('/:id/tickets/:ticketId', async (c) => {
     const { id, ticketId } = validate(ticketParams, c.req.param());
     const values = await readBody(TicketSchema, c.req.raw);
-    const row = await updateTicket(database, id, ticketId, values, c.get('organizer'));
-    return c.json(row);
+    await updateTicket(database, id, ticketId, values, c.get('organizer'));
+    return c.body(null, 204);
   });
 
   router.delete('/:id/tickets/:ticketId', async (c) => {

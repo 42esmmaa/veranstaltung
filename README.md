@@ -147,17 +147,21 @@ Ohne OIDC-Konfiguration sind Schreibzugriffe deaktiviert.
 | Methode | URL | Erfolg |
 |---|---|---|
 | GET | `/veranstaltungen` | 200, Liste |
-| POST | `/veranstaltungen` | 201, Veranstaltung und Location |
-| GET, PUT, DELETE | `/veranstaltungen/:id` | 200, 200, 204 |
-| GET, PUT, DELETE | `/veranstaltungen/:id/ort` | 200, 201 beim Anlegen oder 200 beim Ersetzen, 204 |
+| POST | `/veranstaltungen` | 201 mit Location |
+| GET, PUT, DELETE | `/veranstaltungen/:id` | 200, 204, 204 |
+| GET, PUT, DELETE | `/veranstaltungen/:id/ort` | 200, 201 beim Anlegen oder 204 beim Ersetzen, 204 |
 | GET, POST | `/veranstaltungen/:id/tickets` | 200, 201 mit Location |
-| GET, PUT, DELETE | `/veranstaltungen/:id/tickets/:ticketId` | 200, 200, 204 |
+| GET, PUT, DELETE | `/veranstaltungen/:id/tickets/:ticketId` | 200, 204, 204 |
 
 Listen unterstützen `limit` (Standard 20, maximal 100) und `offset` (Standard 0).
 Veranstaltungen lassen sich zusätzlich nach `q` (Titel), `kategorie`, `ab` (Zeitpunkt) und
 `schlagwort` filtern. Beispiel: `GET /veranstaltungen?kategorie=KONZERT&q=Jazz&limit=10`.
 
 POST und PUT erwarten `Content-Type: application/json`. PUT ersetzt die bearbeitbaren Felder.
+Erfolgreiche Schreibzugriffe liefern keinen Antwortkörper. Beim Anlegen verweist der
+absolute `Location`-Header auf die neue Ressource. Deren Daten können anschließend mit
+GET abgerufen werden. Aktualisierungen liefern 204; das erstmalige Anlegen eines Orts
+per PUT liefert 201 mit `Location`.
 Beim Anlegen, Lesen und Aktualisieren einer einzelnen Veranstaltung liefert REST deren `ETag`.
 Für `PUT /veranstaltungen/:id` muss der Client den zuletzt gelesenen ETag als `If-Match`
 mitsenden, zum Beispiel `If-Match: "0"`. Ein fehlender Header ergibt 428, ein ungültiger
@@ -183,7 +187,7 @@ Beispielkörper für eine Veranstaltung, einen Ort und ein Ticket:
 {"bezeichnung":"Standard","preis":"12.50","kontingent":25,"aktiv":true}
 ```
 
-Die Veranstaltungsantwort ergänzt beispielsweise `"id":1`, `"version":0`, `"veranstalterId":"user-42"`,
+Die GET-Antwort einer Veranstaltung ergänzt beispielsweise `"id":1`, `"version":0`, `"veranstalterId":"user-42"`,
 `"erstellt":"2027-01-02T10:00:00.000Z"` und `"aktualisiert":"2027-01-02T10:00:00.000Z"`.
 Zeitpunkte werden in UTC ausgegeben. Preise bleiben Dezimalstrings.
 
@@ -299,9 +303,10 @@ $token = Invoke-RestMethod -Method Post -Uri "$oidc/token" -Body @{
   device_code = $device.device_code
 }
 $headers = @{ Authorization = "Bearer $($token.access_token)" }
-$event = Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/veranstaltungen' `
+$created = Invoke-WebRequest -Method Post -Uri 'http://localhost:3000/veranstaltungen' `
   -Headers $headers -ContentType 'application/json' `
   -Body '{"titel":"Keycloak-Test","datum":"2027-02-01T19:00:00+01:00","kategorie":"KONZERT","preis":"12.50"}'
+$event = Invoke-RestMethod -Uri ([string]$created.Headers.Location)
 ```
 
 Wiederhole den Gerätefluss als zweiter Veranstalter, bei Bedarf in einem privaten

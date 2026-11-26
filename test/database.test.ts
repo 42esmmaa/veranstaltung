@@ -41,15 +41,18 @@ async function testRest() {
     schlagwoerter: ['rest-jazz'],
     veranstalterId: 'spoofed',
   };
-  const created = await request(path, 'POST', event);
+  const created = await request(path + '?ignored=1', 'POST', event);
   assert.equal(created.status, 201);
-  const createdEvent = await created.json();
+  assert.equal(await created.text(), '');
+  const location = created.headers.get('Location');
+  assert.ok(location);
+  const createdEvent = await (await app.request(location)).json();
   const id: number = createdEvent.id;
   let otherEventId: number | undefined;
   try {
     assert.equal(createdEvent.veranstalterId, 'rest-owner');
     const eventPath = `${path}/${id}`;
-    assert.equal(created.headers.get('Location'), eventPath);
+    assert.equal(location, `http://localhost${eventPath}`);
     assert.equal(createdEvent.version, 0);
     assert.equal(created.headers.get('ETag'), '"0"');
     const searchPath = path + '?q=Jazz_%25&schlagwort=rest-jazz&kategorie=KONZERT';
@@ -93,10 +96,11 @@ async function testRest() {
     const edits = await Promise.all(
       titles.map((titel) => request(eventPath, 'PUT', { ...event, titel }, 'owner', etag)),
     );
-    assert.deepEqual(edits.map(({ status }) => status).sort(), [200, 412]);
-    const winner = edits.findIndex(({ status }) => status === 200);
+    assert.deepEqual(edits.map(({ status }) => status).sort(), [204, 412]);
+    const winner = edits.findIndex(({ status }) => status === 204);
     assert.equal(edits[winner].headers.get('ETag'), '"1"');
-    const updatedEvent = await edits[winner].json();
+    assert.equal(await edits[winner].text(), '');
+    const updatedEvent = await (await app.request(eventPath)).json();
     assert.equal(updatedEvent.id, id);
     assert.equal(updatedEvent.titel, titles[winner]);
     assert.equal(updatedEvent.version, 1);
@@ -118,14 +122,16 @@ async function testRest() {
     assert.equal((await app.request(placePath)).status, 404);
     const createdPlaceResponse = await request(placePath, 'PUT', place);
     assert.equal(createdPlaceResponse.status, 201);
-    assert.equal(createdPlaceResponse.headers.get('Location'), placePath);
-    const createdPlace = await createdPlaceResponse.json();
+    assert.equal(createdPlaceResponse.headers.get('Location'), `http://localhost${placePath}`);
+    assert.equal(await createdPlaceResponse.text(), '');
+    const createdPlace = await (await app.request(placePath)).json();
     assert.equal(createdPlace.veranstaltungId, id);
     const changedPlace = { ...place, name: 'Neue Halle' };
     const updatedPlaceResponse = await request(placePath, 'PUT', changedPlace);
-    assert.equal(updatedPlaceResponse.status, 200);
+    assert.equal(updatedPlaceResponse.status, 204);
     assert.equal(updatedPlaceResponse.headers.get('Location'), null);
-    const updatedPlace = await updatedPlaceResponse.json();
+    assert.equal(await updatedPlaceResponse.text(), '');
+    const updatedPlace = await (await app.request(placePath)).json();
     assert.equal(updatedPlace.id, createdPlace.id);
     assert.equal(updatedPlace.name, changedPlace.name);
     assert.equal((await request(placePath, 'PUT', place, 'foreign')).status, 404);
@@ -142,11 +148,14 @@ async function testRest() {
     assert.equal((await request(ticketsPath, 'POST', entry, 'foreign')).status, 404);
     const ticketResponse = await request(ticketsPath, 'POST', entry);
     assert.equal(ticketResponse.status, 201);
-    const createdTicket = await ticketResponse.json();
+    assert.equal(await ticketResponse.text(), '');
+    const ticketLocation = ticketResponse.headers.get('Location');
+    assert.ok(ticketLocation);
+    const createdTicket = await (await app.request(ticketLocation)).json();
     assert.equal(createdTicket.veranstaltungId, id);
     assert.equal(createdTicket.aktiv, true);
     const ticketPath = `${ticketsPath}/${createdTicket.id}`;
-    assert.equal(ticketResponse.headers.get('Location'), ticketPath);
+    assert.equal(ticketLocation, `http://localhost${ticketPath}`);
     const ticketList = await app.request(ticketsPath + '?limit=1');
     assert.equal(ticketList.status, 200);
     assert.deepEqual(await ticketList.json(), [createdTicket]);
@@ -192,7 +201,10 @@ async function testRest() {
       titel: 'Andere Veranstaltung',
     });
     assert.equal(otherEventResponse.status, 201);
-    otherEventId = (await otherEventResponse.json()).id;
+    assert.equal(await otherEventResponse.text(), '');
+    const otherLocation = otherEventResponse.headers.get('Location');
+    assert.ok(otherLocation);
+    otherEventId = (await (await app.request(otherLocation)).json()).id;
     const wrongTicketPath = `${path}/${otherEventId}/tickets/${createdTicket.id}`;
     for (const method of ['GET', 'PUT', 'DELETE']) {
       const wrongParent = await request(
@@ -206,8 +218,12 @@ async function testRest() {
     assert.equal((await request(ticketPath, 'DELETE', undefined, 'foreign')).status, 404);
     assert.deepEqual(await (await app.request(ticketPath)).json(), createdTicket);
     const updatedTicketResponse = await request(ticketPath, 'PUT', { ...entry, kontingent: 5 });
-    assert.equal(updatedTicketResponse.status, 200);
-    assert.deepEqual(await updatedTicketResponse.json(), { ...createdTicket, kontingent: 5 });
+    assert.equal(updatedTicketResponse.status, 204);
+    assert.equal(await updatedTicketResponse.text(), '');
+    assert.deepEqual(await (await app.request(ticketPath)).json(), {
+      ...createdTicket,
+      kontingent: 5,
+    });
     const deletedTicket = await request(ticketPath, 'DELETE');
     assert.equal(deletedTicket.status, 204);
     assert.equal(await deletedTicket.text(), '');
