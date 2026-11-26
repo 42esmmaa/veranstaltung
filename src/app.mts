@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 import { OrganizerRoleRequired, type AccessTokenVerifier, type Organizer } from './auth.js';
 import type { db } from './db/client.js';
+import { createProblemDetails } from './problem-details.mts';
 import { createGraphqlApp } from './veranstaltung/graphql/graphql-app.js';
 import { ValidationError } from './veranstaltung/router/input.mts';
 import { createRouter as createVeranstaltungRouter } from './veranstaltung/router/veranstaltung-router.mts';
@@ -52,24 +53,26 @@ export function createApp(database: typeof db, verify?: AccessTokenVerifier) {
   app.route('/veranstaltungen', createVeranstaltungWriteRouter(database));
   app.route('/', createGraphqlApp(database, verify));
 
+  app.notFound((c) => createProblemDetails(c, 404, 'Ressource nicht gefunden.'));
+
   app.onError((error, c) => {
     if (error instanceof NotFoundError) {
-      return c.json({ error: error.message }, 404);
+      return createProblemDetails(c, 404, error.message);
     }
     if (error instanceof StaleVersionError) {
-      return c.json({ error: error.message }, 412);
+      return createProblemDetails(c, 412, error.message);
     }
     if (error instanceof ValidationError) {
-      return c.json({ error: error.message, details: error.details }, 400);
+      return createProblemDetails(c, error.status, error.message, error.details);
     }
     if (error instanceof HTTPException) {
-      return c.json({ error: error.message }, error.status);
+      return createProblemDetails(c, error.status, error.message);
     }
     if (databaseCode(error) === '23505') {
-      return c.json({ error: 'Ressource existiert bereits.' }, 409);
+      return createProblemDetails(c, 409, 'Ressource existiert bereits.');
     }
     console.error('REST-Anfrage fehlgeschlagen', { name: error.name, code: databaseCode(error) });
-    return c.json({ error: 'Interner Serverfehler.' }, 500);
+    return createProblemDetails(c, 500, 'Interner Serverfehler.');
   });
 
   return app;

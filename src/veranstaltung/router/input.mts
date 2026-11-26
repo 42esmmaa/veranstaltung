@@ -44,14 +44,18 @@ export function readExpectedVersion(header: string | undefined) {
 }
 
 export class ValidationError extends HTTPException {
-  constructor(readonly details: { feld: string; nachricht: string }[]) {
-    super(400, { message: 'Ungültige Eingaben.' });
+  constructor(
+    readonly details: { feld: string; nachricht: string }[],
+    statusCode: 400 | 422 = 400,
+  ) {
+    super(statusCode, { message: 'Ungültige Eingaben.' });
   }
 }
 
 export function validate<Schema extends z.ZodType>(
   schema: Schema,
   value: unknown,
+  statusCode: 400 | 422 = 400,
 ): z.output<Schema> {
   const result = schema.safeParse(value);
   if (!result.success) {
@@ -60,6 +64,7 @@ export function validate<Schema extends z.ZodType>(
         feld: issue.path.join('.') || 'body',
         nachricht: issue.message,
       })),
+      statusCode,
     );
   }
   return result.data;
@@ -74,5 +79,5 @@ export async function readBody<Schema extends z.ZodType>(schema: Schema, request
   const body: unknown = await request.json().catch(() => {
     throw new ValidationError([{ feld: 'body', nachricht: 'Ungültiges JSON.' }]);
   });
-  return validate(schema, body);
+  return validate(schema, body, 422);
 }

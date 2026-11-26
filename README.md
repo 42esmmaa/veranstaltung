@@ -191,13 +191,27 @@ Die GET-Antwort einer Veranstaltung ergänzt beispielsweise `"id":1`, `"version"
 `"erstellt":"2027-01-02T10:00:00.000Z"` und `"aktualisiert":"2027-01-02T10:00:00.000Z"`.
 Zeitpunkte werden in UTC ausgegeben. Preise bleiben Dezimalstrings.
 
-Fehler liefern JSON wie `{"error":"Ressource nicht gefunden."}`.
-Validierungsfehler enthalten pro Feld einen Eintrag in `details`, zum Beispiel
-`{"error":"Ungültige Eingaben.","details":[{"feld":"preis","nachricht":"Dezimalstring mit bis zu zwei Nachkommastellen erwartet."}]}`.
-Ungültige Eingaben liefern 400, fehlende oder ungültige Tokens 401, eine fehlende
-Veranstalterrolle 403 und fehlende oder
-fremde Ressourcen bei Schreibzugriffen 404. Zu große Bodies liefern 413 und ein
-falscher Content-Type liefert 415. DELETE liefert bei Erfolg keinen Body.
+REST-Fehler verwenden `Content-Type: application/problem+json` nach
+[RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html). Beispiel:
+
+```json
+{"type":"about:blank","title":"Not Found","status":404,"detail":"Ressource nicht gefunden."}
+```
+
+`status` entspricht dem HTTP-Statuscode, `title` beschreibt die Fehlerart und
+`detail` den konkreten Fehler. Fachlich ungültige JSON-Inhalte liefern 422 und
+enthalten Feldfehler zusätzlich unter `errors`:
+
+```json
+{"type":"about:blank","title":"Unprocessable Content","status":422,"detail":"Ungültige Eingaben.","errors":[{"feld":"preis","nachricht":"Dezimalstring mit bis zu zwei Nachkommastellen erwartet."}]}
+```
+
+Fehlerhaftes JSON sowie ungültige Pfad- und Query-Parameter liefern 400, fehlende oder
+ungültige Tokens 401, eine fehlende Veranstalterrolle 403 und fehlende oder fremde
+Ressourcen bei Schreibzugriffen 404. Zu große Bodies liefern 413, ein falscher
+Content-Type 415, fehlendes `If-Match` 428 und veraltete Versionen 412.
+Interne Fehler liefern 500 mit einer allgemeinen Meldung. DELETE liefert bei Erfolg
+keinen Body. GraphQL verwendet das unter GraphQL beschriebene `errors`-Format.
 
 ## GraphQL
 

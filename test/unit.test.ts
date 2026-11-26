@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { createApp } from '../src/app.mts';
 import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
@@ -13,7 +13,10 @@ import { createGraphqlApp } from '../src/veranstaltung/graphql/graphql-app.js';
 test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zugriff ab', async () => {
   const database = {} as typeof db;
   const disabled = createApp(database);
-  assert.equal((await disabled.request('/veranstaltungen', { method: 'POST' })).status, 503);
+  const unavailable = await disabled.request('/veranstaltungen', { method: 'POST' });
+  assert.equal(unavailable.status, 503);
+  assert.equal(unavailable.headers.get('Content-Type'), 'application/problem+json');
+  assert.equal((await unavailable.json()).status, 503);
   const routes = createApp(database, async (authorization) => {
     if (authorization === 'Bearer reader') {
       throw new OrganizerRoleRequired();
@@ -26,33 +29,43 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
   const unauthorized = await routes.request('/veranstaltungen/1/tickets', { method: 'POST' });
   assert.equal(unauthorized.status, 401);
   assert.equal(unauthorized.headers.get('WWW-Authenticate'), 'Bearer');
+  assert.equal(unauthorized.headers.get('Content-Type'), 'application/problem+json');
+  assert.equal((await unauthorized.json()).status, 401);
   const forbidden = await routes.request('/veranstaltungen', {
     method: 'POST',
     headers: { Authorization: 'Bearer reader' },
   });
   assert.equal(forbidden.status, 403);
-  assert.deepEqual(await forbidden.json(), { error: 'Rolle veranstalter erforderlich.' });
+  assert.deepEqual(await forbidden.json(), {
+    type: 'about:blank',
+    title: 'Forbidden',
+    status: 403,
+    detail: 'Rolle veranstalter erforderlich.',
+  });
   const response = await routes.request('/veranstaltungen', {
     method: 'POST',
     headers: { Authorization: 'Bearer test', 'Content-Type': 'application/json' },
     body: JSON.stringify({ titel: 'Test', datum: '2027-02-30T12:00:00Z' }),
   });
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 422);
+  assert.equal(response.headers.get('Content-Type'), 'application/problem+json');
   const failure = await response.json();
-  assert.equal(failure.error, 'Ungültige Eingaben.');
+  assert.equal(failure.status, 422);
+  assert.equal(failure.title, 'Unprocessable Content');
+  assert.equal(failure.detail, 'Ungültige Eingaben.');
   assert.deepEqual(
-    failure.details.map(({ feld }: { feld: string }) => feld),
+    failure.errors.map(({ feld }: { feld: string }) => feld),
     ['datum', 'kategorie', 'preis'],
   );
   const query = await routes.request('/veranstaltungen?limit=101&ab=morgen');
   assert.equal(query.status, 400);
   assert.deepEqual(
-    (await query.json()).details.map(({ feld }: { feld: string }) => feld),
+    (await query.json()).errors.map(({ feld }: { feld: string }) => feld),
     ['limit', 'ab'],
   );
   const path = await routes.request('/veranstaltungen/1/tickets/0');
   assert.equal(path.status, 400);
-  assert.equal((await path.json()).details[0].feld, 'ticketId');
+  assert.equal((await path.json()).errors[0].feld, 'ticketId');
   for (const [body, contentType, status] of [
     ['kein JSON', 'application/json', 400],
     ['{}', 'text/plain', 415],
@@ -64,6 +77,8 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
       body,
     });
     assert.equal(invalidBody.status, status);
+    assert.equal(invalidBody.headers.get('Content-Type'), 'application/problem+json');
+    assert.equal((await invalidBody.json()).status, status);
   }
   for (const [etag, status] of [
     [undefined, 428],
@@ -76,6 +91,53 @@ test('REST lehnt nicht autorisierte und ungültige Schreibanfragen vor dem DB-Zu
     }
     const result = await routes.request('/veranstaltungen/1', { method: 'PUT', headers });
     assert.equal(result.status, status);
+    assert.equal(result.headers.get('Content-Type'), 'application/problem+json');
+    assert.equal((await result.json()).status, status);
+  }
+});
+
+test('REST liefert Problem Details für fehlende Routen und interne Fehler', async () => {
+  const unknown = await createApp({} as typeof db).request('/unbekannt');
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.headers.get('Content-Type'), 'application/problem+json');
+  assert.deepEqual(await unknown.json(), {
+    type: 'about:blank',
+    title: 'Not Found',
+    status: 404,
+    detail: 'Ressource nicht gefunden.',
+  });
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    for (const [error, status, detail] of [
+      [new Error('Interne Datenbankinformationen'), 500, 'Interner Serverfehler.'],
+      [
+        new Error('Abfrage fehlgeschlagen', {
+          cause: Object.assign(new Error('Interner SQL-Fehler'), { code: '23505' }),
+        }),
+        409,
+        'Ressource existiert bereits.',
+      ],
+    ] as const) {
+      const database = {
+        query: {
+          veranstaltung: {
+            findFirst: async () => {
+              throw error;
+            },
+          },
+        },
+      } as unknown as typeof db;
+      const response = await createApp(database).request('/veranstaltungen/1');
+      assert.equal(response.status, status);
+      assert.equal(response.headers.get('Content-Type'), 'application/problem+json');
+      const problem = await response.json();
+      assert.equal(problem.status, status);
+      assert.equal(problem.detail, detail);
+      assert.equal(JSON.stringify(problem).includes('Interne Datenbankinformationen'), false);
+      assert.equal(JSON.stringify(problem).includes('Interner SQL-Fehler'), false);
+    }
+  } finally {
+    log.mockRestore();
   }
 });
 

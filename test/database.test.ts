@@ -97,6 +97,15 @@ async function testRest() {
       titles.map((titel) => request(eventPath, 'PUT', { ...event, titel }, 'owner', etag)),
     );
     assert.deepEqual(edits.map(({ status }) => status).sort(), [204, 412]);
+    const conflict = edits.find(({ status }) => status === 412);
+    assert.ok(conflict);
+    assert.equal(conflict.headers.get('Content-Type'), 'application/problem+json');
+    assert.deepEqual(await conflict.json(), {
+      type: 'about:blank',
+      title: 'Precondition Failed',
+      status: 412,
+      detail: 'Die Veranstaltung wurde zwischenzeitlich geändert.',
+    });
     const winner = edits.findIndex(({ status }) => status === 204);
     assert.equal(edits[winner].headers.get('ETag'), '"1"');
     assert.equal(await edits[winner].text(), '');
@@ -245,7 +254,13 @@ async function testRest() {
     assert.equal(await deleted.text(), '');
     const missing = await app.request(eventPath);
     assert.equal(missing.status, 404);
-    assert.deepEqual(await missing.json(), { error: 'Ressource nicht gefunden.' });
+    assert.equal(missing.headers.get('Content-Type'), 'application/problem+json');
+    assert.deepEqual(await missing.json(), {
+      type: 'about:blank',
+      title: 'Not Found',
+      status: 404,
+      detail: 'Ressource nicht gefunden.',
+    });
     const missingCached = await app.request(eventPath, { headers: { 'If-None-Match': '*' } });
     assert.equal(missingCached.status, 404);
     const graphqlMissing = await query('query($id: ID!) { veranstaltung(id: $id) { id } }', {
@@ -266,7 +281,12 @@ async function testRest() {
         '"1"',
       );
       assert.equal(missingWrite.status, 404);
-      assert.deepEqual(await missingWrite.json(), { error: 'Ressource nicht gefunden.' });
+      assert.deepEqual(await missingWrite.json(), {
+        type: 'about:blank',
+        title: 'Not Found',
+        status: 404,
+        detail: 'Ressource nicht gefunden.',
+      });
     }
   } finally {
     if (otherEventId !== undefined) {
