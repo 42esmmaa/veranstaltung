@@ -203,6 +203,9 @@ importers:
         specifier: 4.1.12
         version: 4.1.12
     devDependencies:
+      '@types/k6':
+        specifier: 2.4.1
+        version: 2.4.1
       '@types/node':
         specifier: ^24.5.0
         version: 24.19.2
@@ -1465,6 +1468,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/k6@2.4.1':
+    resolution: {integrity: sha512-kzF2cGnkZJML9Nk2hIgU0d2gdCvuT5Ux/7pk3bw/rd5i5RaqbO3N28l+eFcF+vHJOwU5HoYC7LP2idtmQhi4SQ==}
 
   '@types/lodash@4.17.27':
     resolution: {integrity: sha512-VenMRv/eKNrspX9v3H4dbmjsrnCOYdYBG3kxXKk3dG6X+urBGcj2Prww3xw1U5K4FV/mE4h5GbWd0szEKf+9ew==}
@@ -4721,6 +4727,8 @@ snapshots:
   '@types/estree@1.0.10': {}
 
   '@types/json-schema@7.0.15': {}
+
+  '@types/k6@2.4.1': {}
 
   '@types/lodash@4.17.27': {}
 

@@ -178,6 +178,68 @@ HTTP-Appserver und frischer PostgreSQL-Datenbank. Dabei wurde der Test-Verifier 
 dem Muster der Integrationstests verwendet. Der echte Keycloak-Gerätefluss wurde
 separat wie unten dokumentiert getestet; die Bruno-Oberfläche wurde nicht geöffnet.
 
+## Lasttest mit Grafana k6
+
+`test/lasttest/script.ts` folgt dem Aufbau der gleichnamigen Datei der Dozentenvorlage:
+getrennte Szenarien mit `ramping-vus`, Einrichtung mit `setup`, Prüfungen und Denkzeit
+zwischen den Iterationen. Das Skript verwendet die integrierten k6-Checks und
+[Thresholds](https://grafana.com/docs/k6/latest/using-k6/thresholds/), damit fehlgeschlagene
+Prüfungen oder überschrittene Grenzwerte auch einen fehlerhaften Prozessstatus ergeben.
+Die k6-Typdefinition ist installiert; `pnpm typecheck` prüft das Skript mit.
+Die k6-Anwendung muss zusätzlich installiert und im `PATH` erreichbar sein
+([Installation](https://grafana.com/docs/k6/latest/set-up/install-k6/)).
+
+| Szenario | Virtuelle Nutzer bei voller Last |
+|---|---:|
+| Veranstaltung nach ID lesen | 2 |
+| Veranstaltung mit `If-None-Match` lesen | 2 |
+| Veranstaltungen nach Titel und Schlagwort suchen | 5 |
+| GraphQL-Veranstaltungssuche | 3 |
+| REST-Veranstaltung anlegen, mit `If-Match` ändern und löschen | 1 |
+
+Alle Szenarien laufen gleichzeitig: 5 Sekunden Lastaufbau, 22 Sekunden konstante Last,
+3 Sekunden Lastabbau, jeweils eine Sekunde Denkzeit pro Iteration. Laufende Iterationen
+dürfen anschließend noch abschließen. Das Maximum liegt bei 13 virtuellen Nutzern.
+Zielwerte sind p95 der HTTP-Anfragedauer unter 500 ms, weniger als 1 % HTTP-Fehler
+und 100 % erfolgreiche fachliche Checks. GraphQL-Fehler werden auch bei HTTP 200 erkannt.
+
+Verwende eine separate lokale Testdatenbank, starte die API und Keycloak wie unten
+beschrieben und melde dich mit einem lokalen Test-Veranstalter an. Dessen Token
+muss für den gesamten Test gültig sein. In derselben PowerShell:
+
+```powershell
+$env:K6_BASE_URL = 'http://127.0.0.1:3000'
+$env:K6_ACCESS_TOKEN = $token.access_token
+pnpm k6
+Remove-Item Env:K6_ACCESS_TOKEN
+Remove-Item Env:K6_BASE_URL
+```
+
+`K6_BASE_URL` akzeptiert ausschließlich `localhost` und `127.0.0.1`; eine Produktions-
+oder Teamdatenbank darf auch hinter diesen Adressen nicht verwendet werden. Der Test
+setzt keine Datenbank zurück. `setup` legt eine eigene Leseveranstaltung an, `teardown`
+löscht sie wieder. Der Schreibzyklus verwendet pro Iteration eine weitere eigene
+Veranstaltung und löscht sie im `finally`-Block. Bei einem harten Prozessabbruch oder
+abgelaufenen Token können Testdatensätze zurückbleiben.
+
+Lokaler Probelauf am 27.11.2026 mit k6 2.3.0, Node.js 26.13.0 und PostgreSQL 17 im
+temporären Container; der HTTP-Appserver lief nativ auf Windows. Die Anmeldung wurde
+für diese Messung durch den Test-Verifier ersetzt. Keycloak-Verifikation und Tokenabruf
+sind deshalb nicht Teil dieser Latenzmessung; der echte Login wurde separat geprüft.
+
+| Messwert | Ergebnis | Ziel |
+|---|---:|---:|
+| HTTP-Aufrufe | 390 | – |
+| HTTP-Anfragedauer p95 | 22,62 ms | unter 500 ms |
+| HTTP-Anfragedauer durchschnittlich | 7,47 ms | – |
+| HTTP-Fehlerrate | 0 % | unter 1 % |
+| Fachliche Checks | 729 von 729 erfolgreich | 100 % |
+
+Nach dem Test waren alle angelegten Veranstaltungen entfernt. Die Messung mit kleiner,
+frischer Datenbank und geringer Last ist ein reproduzierbarer Einstieg, keine Aussage
+über Produktionskapazität, große Datenbestände oder das Verhalten über längere Zeit.
+Der Lasttest wird separat gestartet und ist kein Bestandteil des normalen CI-Laufs.
+
 ## Datenmodell
 
 - `Veranstaltung`: Titel, Datum, Kategorie als Enum, Schlagwörter als JSON-Array, Preis und Veranstalter-ID aus dem OIDC-Token.
