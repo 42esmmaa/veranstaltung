@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app.mts';
 import { createAccessTokenVerifier } from './auth.js';
 import { db } from './db/client.js';
+import { getLogger } from './logger/logger.mts';
 
 const port = Number(process.env['PORT'] ?? 3000);
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -29,5 +30,8 @@ const verify =
 const app = createApp(db, verify);
 
 serve({ fetch: app.fetch, port }, (info) => {
-  console.info(`Veranstaltungs-API läuft auf http://localhost:${info.port}`);
+  getLogger('index').info(
+    { port: info.port, nodeVersion: process.version },
+    'Appserver gestartet.',
+  );
 });

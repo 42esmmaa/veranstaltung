@@ -9,6 +9,7 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
       OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}

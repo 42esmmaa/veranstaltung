@@ -1,7 +1,9 @@
-import { createSchema, createYoga } from 'graphql-yoga';
+import { createSchema, createYoga, type Plugin } from 'graphql-yoga';
 import { Hono } from 'hono';
+import type { Logger } from 'pino';
 import type { AccessTokenVerifier } from '../../auth.js';
 import type { db } from '../../db/client.js';
+import { getLogger, type LoggingVariables } from '../../logger/logger.mts';
 import {
   createHandler,
   createTicketHandler,
@@ -29,7 +31,7 @@ import type {
   VeranstaltungInput,
 } from './types.js';
 
-type GraphqlContext = { request: Request };
+type GraphqlContext = { request: Request; requestLogger: Logger };
 
 export function createGraphqlApp(database: typeof db, verify?: AccessTokenVerifier) {
   const resolvers = {
@@ -93,14 +95,35 @@ export function createGraphqlApp(database: typeof db, verify?: AccessTokenVerifi
         ticketHandler(database, veranstaltungId, id),
     },
   };
-  const yogaServer = createYoga({
+  const yogaServer = createYoga<{ requestLogger: Logger }>({
     schema: createSchema({ typeDefs, resolvers }),
     graphqlEndpoint: '/graphql',
     graphiql: false,
+    logging: false,
+    requestId: false,
+    plugins: [
+      {
+        onResultProcess({ result, serverContext }) {
+          const errors = Array.isArray(result)
+            ? result.flatMap((entry) => entry.errors ?? [])
+            : 'errors' in result
+              ? (result.errors ?? [])
+              : [];
+          if (errors.length > 0) {
+            serverContext.requestLogger.warn(
+              { errorCount: errors.length },
+              'GraphQL-Anfrage enthält Fehler.',
+            );
+          }
+        },
+      } satisfies Plugin<GraphqlContext, Pick<GraphqlContext, 'requestLogger'>>,
+    ],
   });
-  const app = new Hono();
+  const app = new Hono<{ Variables: Partial<LoggingVariables> }>();
   app.post('/graphql', async (c) => {
-    const response = await yogaServer.fetch(c.req.raw);
+    const response = await yogaServer.fetch(c.req.raw, {
+      requestLogger: c.get('requestLogger') ?? getLogger('graphql'),
+    });
     return c.newResponse(response.body, response);
   });
   return app;

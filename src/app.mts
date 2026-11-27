@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
+import type { Logger } from 'pino';
 import { OrganizerRoleRequired, type AccessTokenVerifier, type Organizer } from './auth.js';
 import type { db } from './db/client.js';
+import { getLogger, type LoggingVariables } from './logger/logger.mts';
+import { requestLogger } from './logger/request-logger.mts';
+import { responseTime } from './logger/response-time.mts';
 import { createProblemDetails } from './problem-details.mts';
 import { createGraphqlApp } from './veranstaltung/graphql/graphql-app.js';
 import { ValidationError } from './veranstaltung/router/input.mts';
@@ -17,8 +21,13 @@ function databaseCode(error: unknown): unknown {
   return 'code' in error ? error.code : databaseCode(error.cause);
 }
 
-export function createApp(database: typeof db, verify?: AccessTokenVerifier) {
-  const app = new Hono<{ Variables: { organizer: Organizer } }>();
+export function createApp(
+  database: typeof db,
+  verify?: AccessTokenVerifier,
+  logger: Logger = getLogger('app'),
+) {
+  const app = new Hono<{ Variables: LoggingVariables & { organizer: Organizer } }>();
+  app.use('*', requestLogger(logger), responseTime);
 
   app.use('/veranstaltungen/*', async (c, next) => {
     if (['POST', 'PUT', 'DELETE'].includes(c.req.method)) {
@@ -71,7 +80,11 @@ export function createApp(database: typeof db, verify?: AccessTokenVerifier) {
     if (databaseCode(error) === '23505') {
       return createProblemDetails(c, 409, 'Ressource existiert bereits.');
     }
-    console.error('REST-Anfrage fehlgeschlagen', { name: error.name, code: databaseCode(error) });
+    const code = databaseCode(error);
+    c.get('requestLogger').error(
+      { errorType: error.name, code: typeof code === 'string' ? code : undefined },
+      'Anfrage fehlgeschlagen.',
+    );
     return createProblemDetails(c, 500, 'Interner Serverfehler.');
   });
 

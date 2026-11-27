@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
+import { pino } from 'pino';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { createApp } from '../src/app.mts';
 import { createAccessTokenVerifier, OrganizerRoleRequired } from '../src/auth.js';
@@ -108,39 +109,96 @@ test('REST liefert Problem Details für fehlende Routen und interne Fehler', asy
     status: 404,
     detail: 'Ressource nicht gefunden.',
   });
-  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-  try {
-    for (const [error, status, detail] of [
-      [new Error('Interne Datenbankinformationen'), 500, 'Interner Serverfehler.'],
-      [
-        new Error('Abfrage fehlgeschlagen', {
-          cause: Object.assign(new Error('Interner SQL-Fehler'), { code: '23505' }),
-        }),
-        409,
-        'Ressource existiert bereits.',
-      ],
-    ] as const) {
-      const database = {
-        query: {
-          veranstaltung: {
-            findFirst: async () => {
-              throw error;
-            },
+  const logger = pino({ level: 'silent' });
+  for (const [error, status, detail] of [
+    [new Error('Interne Datenbankinformationen'), 500, 'Interner Serverfehler.'],
+    [
+      new Error('Abfrage fehlgeschlagen', {
+        cause: Object.assign(new Error('Interner SQL-Fehler'), { code: '23505' }),
+      }),
+      409,
+      'Ressource existiert bereits.',
+    ],
+  ] as const) {
+    const database = {
+      query: {
+        veranstaltung: {
+          findFirst: async () => {
+            throw error;
           },
         },
-      } as unknown as typeof db;
-      const response = await createApp(database).request('/veranstaltungen/1');
-      assert.equal(response.status, status);
-      assert.equal(response.headers.get('Content-Type'), 'application/problem+json');
-      const problem = await response.json();
-      assert.equal(problem.status, status);
-      assert.equal(problem.detail, detail);
-      assert.equal(JSON.stringify(problem).includes('Interne Datenbankinformationen'), false);
-      assert.equal(JSON.stringify(problem).includes('Interner SQL-Fehler'), false);
-    }
-  } finally {
-    log.mockRestore();
+      },
+    } as unknown as typeof db;
+    const response = await createApp(database, undefined, logger).request('/veranstaltungen/1');
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get('Content-Type'), 'application/problem+json');
+    const problem = await response.json();
+    assert.equal(problem.status, status);
+    assert.equal(problem.detail, detail);
+    assert.equal(JSON.stringify(problem).includes('Interne Datenbankinformationen'), false);
+    assert.equal(JSON.stringify(problem).includes('Interner SQL-Fehler'), false);
   }
+});
+
+test('Pino protokolliert REST und GraphQL mit Request-ID ohne sensible Eingaben', async () => {
+  const entries: Record<string, unknown>[] = [];
+  const logger = pino(
+    { level: 'debug' },
+    {
+      write: (chunk) => {
+        entries.push(JSON.parse(chunk));
+      },
+    },
+  );
+  const secret = 'nur-fuer-diesen-test-geheim';
+  const database = {
+    query: {
+      veranstaltung: {
+        findFirst: async () => {
+          throw new Error(secret);
+        },
+      },
+    },
+  } as unknown as typeof db;
+  const app = createApp(database, undefined, logger);
+  const responses = [];
+  responses.push(
+    await app.request(`/unbekannt/${secret}?password=${secret}`, {
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        Cookie: `session=${secret}`,
+        'X-Request-Id': secret,
+      },
+    }),
+  );
+  responses.push(await app.request('/veranstaltungen/1'));
+  responses.push(
+    await app.request('/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({
+        query: 'query($id: ID!) { veranstaltung(id: $id) { id } }',
+        variables: { id: '1', password: secret },
+      }),
+    }),
+  );
+  assert.deepEqual(
+    responses.map((response) => response.status),
+    [404, 500, 200],
+  );
+  const ids = responses.map((response) => response.headers.get('X-Request-Id'));
+  assert.equal(new Set(ids).size, responses.length);
+  for (const id of ids) {
+    assert.match(id ?? '', /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/);
+    const completed = entries.find(
+      (entry) => entry['requestId'] === id && entry['msg'] === 'Anfrage abgeschlossen.',
+    );
+    assert.ok(completed);
+    assert.equal(typeof completed['durationMs'], 'number');
+  }
+  assert.ok(entries.some((entry) => entry['requestId'] === ids[1] && entry['level'] === 50));
+  assert.ok(entries.some((entry) => entry['requestId'] === ids[2] && entry['errorCount'] === 1));
+  assert.equal(JSON.stringify(entries).includes(secret), false);
 });
 
 test('Zod normalisiert gültige Werte und prüft die fachlichen Grenzen', () => {

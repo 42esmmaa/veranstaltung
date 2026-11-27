@@ -240,6 +240,42 @@ frischer Datenbank und geringer Last ist ein reproduzierbarer Einstieg, keine Au
 über Produktionskapazität, große Datenbestände oder das Verhalten über längere Zeit.
 Der Lasttest wird separat gestartet und ist kein Bestandteil des normalen CI-Laufs.
 
+## Pino-Logging
+
+Wie in der Dozentenvorlage liegen `getLogger`, Request-Middleware und Zeitmessung
+unter `src/logger`. Pino schreibt JSON-Zeilen nach stdout, damit lokale Ausführung
+und Docker dieselben strukturierten Logs verwenden. Statt der Datei- und
+Pretty-Transports der Vorlage nutzen wir die vorhandene Konsolenausgabe.
+
+`LOG_LEVEL` steuert die Mindeststufe, standardmäßig `info`. Unterstützt werden
+`trace`, `debug`, `info`, `warn`, `error`, `fatal` und `silent`. Die Einstellung
+steht in `.env.example` und wird beim Compose-Appcontainer weitergegeben.
+
+Jede HTTP-Anfrage erhält eine neue serverseitige UUID im Header `X-Request-Id`.
+Mit dieser ID lassen sich die Einträge einer Anfrage zusammenführen. Eingehende
+Request-IDs werden nicht übernommen. Die Abschlussmeldung enthält HTTP-Methode,
+Routenmuster, Status und Dauer in Millisekunden. Bei `debug` erscheint zusätzlich
+der Beginn der Anfrage. Der Start des Appservers protokolliert Port und Node-Version.
+
+Geloggte Daten sind ausdrücklich ausgewählt: keine Authorization- oder Cookie-Header,
+keine Query-Parameter, Pfadwerte, Request-Bodies, GraphQL-Variablen, Tokens oder Passwörter.
+Bei unerwarteten REST-Fehlern werden nur Fehlertyp und gegebenenfalls Fehlercode
+erfasst, keine Fehlermeldung, SQL-Abfrage oder verschachtelte Ursache. GraphQL-Fehler
+werden mit ihrer Anzahl und derselben Request-ID protokolliert; der eigene
+Yoga-Logger ist zugunsten dieses gemeinsamen Pino-Loggings deaktiviert.
+
+```powershell
+docker compose --profile app logs -f app
+```
+
+Ein automatisierter Test prüft die JSON-Ausgabe für REST- und GraphQL-Fehler,
+unterschiedliche Request-IDs, Laufzeiten und den Ausschluss sensibler Testwerte
+aus Headern, URL, Body und Fehlermeldungen. Zusätzlich wurden Image-Build, Start
+und JSON-Logs unter Node.js 24 im isolierten Compose-Appcontainer geprüft:
+Request-IDs und Status stimmten überein, sensible Testwerte fehlten in den Logs.
+OWASP Dependency Check folgt als
+separater Arbeitsschritt; Pino ersetzt keine Prüfung der Abhängigkeiten.
+
 ## Datenmodell
 
 - `Veranstaltung`: Titel, Datum, Kategorie als Enum, Schlagwörter als JSON-Array, Preis und Veranstalter-ID aus dem OIDC-Token.
