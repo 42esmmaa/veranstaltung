@@ -1,0 +1,37 @@
+meta {
+  name: Veranstaltung-aendern
+  type: graphql
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  mutation { update(id: "{{graphqlId}}", version: {{graphqlVersion}}, input: { titel: "Bruno GraphQL aktualisiert", datum: "2027-02-01T19:00:00+01:00", kategorie: KONZERT, preis: "12.50", schlagwoerter: ["bruno"] }) { id titel version } }
+}
+
+script:post-response {
+  if (!res.getBody().errors) bru.setVar('graphqlVersion', res.getBody().data.update.version);
+}
+
+tests {
+  test('Veranstaltung-aendern', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors).to.equal(undefined);
+    expect(res.getBody().data.update.version).to.equal(1);
+    expect(res.getBody().data.update.titel).to.equal('Bruno GraphQL aktualisiert');
+  });
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Ticket-loeschen
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/veranstaltungen/{{restId}}/tickets/{{ticketId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test('Ticket-loeschen', function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

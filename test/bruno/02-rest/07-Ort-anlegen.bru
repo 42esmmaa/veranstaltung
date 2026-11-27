@@ -1,0 +1,36 @@
+meta {
+  name: Ort-anlegen
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/veranstaltungen/{{restId}}/ort
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Stadthalle",
+    "strasse": "Markt 1",
+    "plz": "12345",
+    "stadt": "Beispielstadt"
+  }
+}
+
+tests {
+  test('Ort-anlegen', function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getHeader('location')).to.contain('/ort');
+  });
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Veraltete-Version
+  type: graphql
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  mutation { update(id: "{{graphqlId}}", version: 0, input: { titel: "Bruno GraphQL", datum: "2027-02-01T19:00:00+01:00", kategorie: KONZERT, preis: "12.50", schlagwoerter: ["bruno"] }) { id } }
+}
+
+tests {
+  test('Veraltete-Version', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors[0].extensions.code).to.equal('CONFLICT');
+  });
+}

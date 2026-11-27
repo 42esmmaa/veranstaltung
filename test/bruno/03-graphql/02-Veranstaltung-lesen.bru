@@ -1,0 +1,32 @@
+meta {
+  name: Veranstaltung-lesen
+  type: graphql
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  { veranstaltung(id: "{{graphqlId}}") { id titel datum preis version } }
+}
+
+script:post-response {
+  if (!res.getBody().errors && res.getBody().data.veranstaltung) bru.setVar('graphqlVersion', res.getBody().data.veranstaltung.version);
+}
+
+tests {
+  test('Veranstaltung-lesen', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors).to.equal(undefined);
+    expect(res.getBody().data.veranstaltung.id).to.equal(bru.getVar('graphqlId'));
+  });
+}

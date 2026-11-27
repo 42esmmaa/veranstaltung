@@ -1,0 +1,40 @@
+meta {
+  name: Ticket-anlegen
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/veranstaltungen/{{restId}}/tickets
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "bezeichnung": "Standard",
+    "preis": "12.50",
+    "kontingent": 25,
+    "aktiv": true
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) bru.setVar('ticketId', res.getHeader('location').split('/').pop());
+}
+
+tests {
+  test('Ticket-anlegen', function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getHeader('location')).to.match(/\/tickets\/\d+$/);
+  });
+}

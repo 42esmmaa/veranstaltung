@@ -1,0 +1,44 @@
+meta {
+  name: Veranstaltung-anlegen
+  type: graphql
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  mutation { create(input: { titel: "Bruno GraphQL", datum: "2027-02-01T19:00:00+01:00", kategorie: KONZERT, preis: "12.50", schlagwoerter: ["bruno"] }) { id titel version } }
+}
+
+script:pre-request {
+  bru.setVar('graphqlId', '');
+  bru.setVar('graphqlVersion', '');
+}
+
+script:post-response {
+  if (!res.getBody().errors) {
+    bru.setVar('graphqlId', res.getBody().data.create.id);
+    bru.setVar('graphqlVersion', res.getBody().data.create.version);
+  }
+}
+
+tests {
+  test('Veranstaltung-anlegen', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors).to.equal(undefined);
+    expect(res.getBody().data.create.version).to.equal(0);
+  });
+}

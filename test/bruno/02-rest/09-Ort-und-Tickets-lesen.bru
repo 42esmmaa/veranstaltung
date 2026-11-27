@@ -1,0 +1,30 @@
+meta {
+  name: Ort-und-Tickets-lesen
+  type: graphql
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  { veranstaltung(id: "{{restId}}") { id version ort { name stadt } tickets(limit: 5) { id bezeichnung kontingent } } }
+}
+
+tests {
+  test('Ort-und-Tickets-lesen', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors).to.equal(undefined);
+    const event = res.getBody().data.veranstaltung;
+    expect(event.ort.name).to.equal('Stadthalle');
+    expect(event.tickets.some((ticket) => ticket.id === bru.getVar('ticketId'))).to.equal(true);
+  });
+}

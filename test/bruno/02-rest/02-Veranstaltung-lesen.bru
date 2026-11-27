@@ -1,0 +1,27 @@
+meta {
+  name: Veranstaltung-lesen
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/veranstaltungen/{{restId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200) bru.setVar('restEtag', res.getHeader('etag'));
+}
+
+tests {
+  test('Veranstaltung-lesen', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(String(res.getBody().id)).to.equal(bru.getVar('restId'));
+    expect(res.getBody().titel).to.equal('Bruno Jazzabend');
+  });
+}

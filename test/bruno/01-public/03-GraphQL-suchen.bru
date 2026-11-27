@@ -1,0 +1,28 @@
+meta {
+  name: GraphQL-suchen
+  type: graphql
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  { veranstaltungen(input: { kategorie: KONZERT, schlagwort: "bruno", limit: 5 }) { id titel version ort { name } tickets(limit: 5) { id bezeichnung } } }
+}
+
+tests {
+  test('GraphQL-suchen', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors).to.equal(undefined);
+    expect(res.getBody().data.veranstaltungen).to.be.an('array');
+  });
+}

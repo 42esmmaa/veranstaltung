@@ -1,0 +1,32 @@
+meta {
+  name: Veranstaltung-loeschen
+  type: graphql
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  mutation { delete(id: "{{graphqlId}}") { success } }
+}
+
+tests {
+  test('Veranstaltung-loeschen', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors).to.equal(undefined);
+    expect(res.getBody().data.delete.success).to.equal(true);
+  });
+}

@@ -1,0 +1,35 @@
+meta {
+  name: Ticket-aendern
+  type: http
+  seq: 10
+}
+
+put {
+  url: {{baseUrl}}/veranstaltungen/{{restId}}/tickets/{{ticketId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "bezeichnung": "Standard",
+    "preis": "15.00",
+    "kontingent": 30,
+    "aktiv": true
+  }
+}
+
+tests {
+  test('Ticket-aendern', function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

@@ -1,0 +1,35 @@
+meta {
+  name: REST-ohne-Token
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/veranstaltungen
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "titel": "Bruno Jazzabend",
+    "datum": "2027-02-01T19:00:00+01:00",
+    "kategorie": "KONZERT",
+    "preis": "12.50",
+    "schlagwoerter": [
+      "bruno"
+    ]
+  }
+}
+
+tests {
+  test('REST-ohne-Token', function () {
+    expect(res.getStatus()).to.equal(401);
+    expect(res.getBody().status).to.equal(401);
+  });
+}

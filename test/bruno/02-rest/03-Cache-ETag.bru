@@ -1,0 +1,23 @@
+meta {
+  name: Cache-ETag
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/veranstaltungen/{{restId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  If-None-Match: {{restEtag}}
+}
+
+tests {
+  test('Cache-ETag', function () {
+    expect(res.getStatus()).to.equal(304);
+    expect(res.getHeader('etag')).to.equal(bru.getVar('restEtag'));
+  });
+}

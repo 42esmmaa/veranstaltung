@@ -1,0 +1,25 @@
+meta {
+  name: Veranstaltung-loeschen
+  type: http
+  seq: 13
+}
+
+delete {
+  url: {{baseUrl}}/veranstaltungen/{{restId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test('Veranstaltung-loeschen', function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

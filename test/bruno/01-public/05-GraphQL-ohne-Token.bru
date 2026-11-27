@@ -1,0 +1,27 @@
+meta {
+  name: GraphQL-ohne-Token
+  type: graphql
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/graphql
+  body: graphql
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:graphql {
+  mutation { delete(id: "0") { success } }
+}
+
+tests {
+  test('GraphQL-ohne-Token', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().errors[0].extensions.code).to.equal('UNAUTHENTICATED');
+  });
+}

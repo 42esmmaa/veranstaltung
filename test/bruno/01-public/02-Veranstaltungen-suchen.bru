@@ -1,0 +1,24 @@
+meta {
+  name: Veranstaltungen-suchen
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/veranstaltungen?kategorie=KONZERT&schlagwort=bruno&page=1&size=5
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  test('Veranstaltungen-suchen', function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().content).to.be.an('array');
+    expect(res.getBody().page.number).to.equal(0);
+    expect(res.getBody().page.size).to.equal(5);
+  });
+}

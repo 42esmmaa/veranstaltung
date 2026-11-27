@@ -131,6 +131,53 @@ Node.js 24 und die in `package.json` festgelegte pnpm-Version, installiert mit
 und `pnpm test:db` stellt er eine eigene PostgreSQL-Instanz bereit. Schlägt eine Prüfung
 fehl, schlägt der CI-Job fehl; auch Oxlint und die Oxfmt-Formatprüfung sind Pflichtschritte.
 
+## Bruno
+
+Die Collection liegt unter `test/bruno`. Die lokale Dozentenvorlage enthält keine
+Bruno-Dateien; die Requests verwenden deshalb die vorhandenen API-Verträge und
+Testdaten unseres Projekts. Die Bruno-CLI 4.4.0 ist als Entwicklungsabhängigkeit
+festgelegt und wird mit `pnpm install --frozen-lockfile` installiert.
+
+Starte PostgreSQL, Keycloak und die API wie unter **Lokal mit Keycloak anmelden**
+beschrieben. Melde dich als Veranstalter über den Gerätefluss an. In derselben
+PowerShell steht danach `$token.access_token` zur Verfügung:
+
+```powershell
+$env:BRUNO_ACCESS_TOKEN = $token.access_token
+pnpm test:bruno
+Remove-Item Env:BRUNO_ACCESS_TOKEN
+```
+
+Die Umgebung `local` verwendet `http://127.0.0.1:3000`. Eine andere Adresse kann
+beim CLI-Aufruf mitgegeben werden:
+
+```powershell
+pnpm test:bruno --env-var baseUrl=http://127.0.0.1:3001
+```
+
+Für die Bruno-Oberfläche **Open Collection** wählen, den Ordner `test/bruno`
+öffnen und die Umgebung `local` auswählen. Die Adresse steht in
+`environments/local.bru`. Für das Token die leere Vorlage
+`test/bruno/.env.example` nach `test/bruno/.env` kopieren und dort lokal
+`BRUNO_ACCESS_TOKEN` setzen. Diese `.env` wird von Git ignoriert.
+Die Verwendung von Prozessvariablen entspricht der
+[Bruno-Dokumentation](https://docs.usebruno.com/variables/process-env).
+
+Die 23 Requests werden in der Reihenfolge `01-public`, `02-rest`, `03-graphql`
+ausgeführt. Sie prüfen öffentliche Abfragen, fehlende Anmeldung, REST- und GraphQL-CRUD,
+Orte und Tickets, Validierungsfehler sowie ETags und Versionskonflikte. IDs und Versionen
+werden ausschließlich als temporäre Laufzeitvariablen aus den Antworten übernommen.
+Beide CRUD-Abläufe legen eine eigene Veranstaltung an und löschen sie am Ende wieder.
+Beim manuellen Ausführen zuerst den jeweiligen Anlege-Request ausführen; nach einem
+Fehler den Ablauf korrigieren und neu starten. Der CLI-Lauf stoppt beim ersten Fehler.
+Bei einem abgebrochenen Ablauf können die angelegten Testdatensätze zurückbleiben.
+Ein abgelaufenes Token muss durch eine neue Anmeldung ersetzt werden.
+
+Geprüft wurde die vollständige Collection mit dem Bruno-CLI-Runner, einem laufenden
+HTTP-Appserver und frischer PostgreSQL-Datenbank. Dabei wurde der Test-Verifier aus
+dem Muster der Integrationstests verwendet. Der echte Keycloak-Gerätefluss wurde
+separat wie unten dokumentiert getestet; die Bruno-Oberfläche wurde nicht geöffnet.
+
 ## Datenmodell
 
 - `Veranstaltung`: Titel, Datum, Kategorie als Enum, Schlagwörter als JSON-Array, Preis und Veranstalter-ID aus dem OIDC-Token.
