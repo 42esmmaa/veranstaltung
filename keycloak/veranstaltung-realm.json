@@ -33,7 +33,7 @@
           }
         }
       ],
-      "defaultClientScopes": ["roles"],
+      "defaultClientScopes": ["basic", "roles"],
       "optionalClientScopes": []
     }
   ]

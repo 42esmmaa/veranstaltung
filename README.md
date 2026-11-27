@@ -309,6 +309,13 @@ Für den 403-Fall kannst du einen weiteren Nutzer ohne diese Rolle anlegen.
 Keycloak speichert den Realm und die Nutzer im eigenen Volume. Beim Neustart
 wird ein vorhandener Realm nicht erneut importiert.
 
+Der Client benötigt die Standard-Client-Scopes `basic` und `roles`. `basic` liefert
+die Nutzerkennung `sub`, aus der die API den Veranstalter bestimmt; `roles` liefert
+die Realm-Rollen. Siehe auch die [Keycloak-Upgradehinweise zum `basic`-Scope](https://www.keycloak.org/docs/26.7.4/upgrading/).
+Bei einem bereits importierten Realm: Unter **Clients → veranstaltungs-cli → Client scopes**
+den Scope **basic** mit Typ **Default** hinzufügen, falls er fehlt. Anschließend neu anmelden,
+damit ein neues Token ausgestellt wird. Bestehende Daten und Nutzer müssen dafür nicht gelöscht werden.
+
 In einer zweiten PowerShell kannst du über den OAuth-2-Gerätefluss ein Access-Token holen.
 Der Client `veranstaltungs-cli` ist öffentlich und benötigt kein Client-Secret.
 
@@ -345,3 +352,19 @@ Der lokale HTTP-Modus ist auf den explizit erlaubten Issuer und JWKS gleicher
 Herkunft unter `127.0.0.1` beschränkt. Für GraphQL gilt
 dieselbe Regel: Lesen ist öffentlich, Mutationen erfordern Veranstalterrolle
 und bei bestehenden Ressourcen die Eigentümerschaft.
+
+Am 27.11.2026 wurde zusätzlich ein isolierter Live-Test mit Keycloak 26.8.2,
+frischer PostgreSQL-Datenbank und einem laufenden HTTP-Appserver durchgeführt.
+Drei temporäre Nutzer meldeten sich über den Gerätefluss an; die API prüfte die
+von Keycloak ausgestellten Tokens über dessen JWKS-Endpunkt. Geprüft wurden:
+
+| Fall | REST | GraphQL |
+|---|---|---|
+| Kein oder ungültiges Token | 401 | `UNAUTHENTICATED` |
+| Nutzer ohne Veranstalterrolle | 403 | `FORBIDDEN` |
+| Veranstalter beim Anlegen | Nutzerkennung aus dem Token | Nutzerkennung aus dem Token |
+| Fremde Veranstaltung ändern oder löschen | 404 | `BAD_USER_INPUT` |
+| Eigene Veranstaltung anlegen, ändern und löschen | 201 / 204 / 204 | erfolgreiche Mutationen |
+
+Dieser separate Live-Test ergänzt `pnpm test` und `pnpm test:db`; deren Aufrufe
+starten keinen Keycloak und führen keine echte Anmeldung aus.
