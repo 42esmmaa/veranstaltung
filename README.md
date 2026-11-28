@@ -326,28 +326,44 @@ Analysefehler bleiben Fehler; sie werden nicht als erfolgreicher Scan gewertet.
 Dieser gesonderte Sicherheitscheck ist kein Bestandteil des normalen CI-Workflows.
 
 Am 28.11.2026 wurden der vollständige Erstlauf ohne API-Key und ein Folgelauf mit
-Cache geprüft. Beide erzeugten HTML und JSON. Der Folgelauf meldete **7 Hinweise:
-2 high und 5 moderate** und lieferte wegen der hohen Funde erwartungsgemäß Exitcode 15.
-Der verwendete NVD-Datenstand war vom 27.11.2026. Gefunden wurden:
+Cache geprüft. Beide erzeugten HTML und JSON. Vor den Sicherheitsupdates wurden
+7 Hinweise (2 high und 5 moderate) mit Exitcode 15 gemeldet. Nach den folgenden
+Updates melden **`pnpm audit --json` und `pnpm dependency-check` jeweils 0 bekannte
+Sicherheitslücken und Exitcode 0**. Der verwendete NVD-Datenstand war vom 27.11.2026.
 
-| Paket | Einstufung | Advisory |
-|---|---|---|
-| `zod` | high | [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) |
-| `@faker-js/faker` | high | [GHSA-qxc2-j82w-r537](https://github.com/advisories/GHSA-qxc2-j82w-r537) |
-| `@hono/node-server` | moderate | [GHSA-rmxm-3fg6-px4f](https://github.com/advisories/GHSA-rmxm-3fg6-px4f) |
-| `csv-parse` | moderate | [GHSA-8cw4-87c7-c6xx](https://github.com/advisories/GHSA-8cw4-87c7-c6xx) |
-| `glob` | moderate | [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) |
-| `minimatch` | moderate | [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) |
-| `uuid` | moderate | [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) |
+| Paket | Vorher | Nachher | Behobene Advisory |
+|---|---|---|---|
+| `zod` | 4.1.12 | 4.6.7 | [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) |
+| `@faker-js/faker` | 9.9.0 | 10.6.0 | [GHSA-qxc2-j82w-r537](https://github.com/advisories/GHSA-qxc2-j82w-r537) |
+| `@hono/node-server` | 1.19.19 | 2.1.11 | [GHSA-rmxm-3fg6-px4f](https://github.com/advisories/GHSA-rmxm-3fg6-px4f) |
+| `csv-parse` | 5.6.0 | 7.0.3 | [GHSA-8cw4-87c7-c6xx](https://github.com/advisories/GHSA-8cw4-87c7-c6xx) |
+| `glob` | 10.5.0 | 14.0.6 | [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) |
+| `minimatch` | 9.0.9 | 11.0.9 | [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) |
+| `uuid` | 10.0.0 | 11.1.1 | [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) |
 
-Die Funde sind noch offen. Zod und der Hono-Node-Adapter gehören zur Anwendung;
-die übrigen gemeldeten Pakete stammen aus der Bruno-CLI. Zur Auswertung die
+Zod und der Hono-Node-Adapter wurden direkt in `package.json` aktualisiert.
+Für die indirekten Bruno-Abhängigkeiten stehen vier auf ihre jeweiligen Elternpakete
+begrenzte `overrides` in `pnpm-workspace.yaml`; die neue Glob-Version bringt bereits
+die korrigierte Minimatch-Version mit. UUID bleibt auf der korrigierten Version 11.1.1
+mit CommonJS-Unterstützung. Bei zukünftigen Bruno-Updates diese Vorgaben neu bewerten
+und nach einem passenden Upstream-Fix entfernen. Es werden keine Advisories unterdrückt.
+
+Nach den Updates bestanden Typprüfung, Lint, Build, 10 Unit-Tests, der Datenbank-
+Integrationstest und alle 23 Bruno-Requests mit simuliertem Login. Zusätzlich wurden
+Brunos CSV-Parser, UUID-Erzeugung, Faker/gRPC-Beispieldaten und das Zusammenwirken von
+Rimraf, Glob und Minimatch mit eigenen temporären Testdateien geprüft. Das Docker-Image
+wurde unter Node.js 24 neu gebaut und mit REST-/GraphQL-Abfragen getestet.
+
+Bei neuen Funden zur Auswertung die
 Advisory-ID, betroffene Funktion und den Abhängigkeitspfad prüfen, beispielsweise
 mit `pnpm why zod` und `pnpm audit --json`. Der Analyzer-Bericht enthält nicht bei
 jedem indirekten Paket die installierte Version; dafür das Lockfile und die
-pnpm-Ausgabe hinzuziehen. Updates anschließend gezielt durchführen und die
-Projektprüfungen sowie den Scan erneut starten. Für diese Funde wurden keine
-Suppressions oder automatischen Fixes übernommen.
+pnpm-Ausgabe hinzuziehen. Beim reinen Lockfile-Scan erzeugt der Pnpm Audit Analyzer
+keine vollständige Paketinventarliste: Ohne Funde kann der Bericht auch null
+Abhängigkeiten anzeigen. Die Paketanzahl steht ergänzend in `pnpm audit --json`.
+Updates anschließend gezielt durchführen und die
+Projektprüfungen sowie den Scan erneut starten. Ein Scan ohne Hinweise ist eine
+Momentaufnahme anhand der verfügbaren Daten und ersetzt keine spätere Wiederholung.
 
 ## Datenmodell
 

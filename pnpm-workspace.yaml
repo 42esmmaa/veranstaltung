@@ -4,3 +4,9 @@ packages:
 allowBuilds:
   esbuild: true
   protobufjs: false
+
+overrides:
+  "@usebruno/requests@0.23.0>@faker-js/faker": 10.6.0
+  "@usebruno/cli@4.4.0>csv-parse": 7.0.3
+  "@usebruno/js@0.56.0>uuid": 11.1.1
+  "rimraf@5.0.10>glob": 14.0.6
