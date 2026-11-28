@@ -2,6 +2,30 @@
 
 Hono-Appserver mit TypeScript, Drizzle ORM und PostgreSQL. Der fachliche Aufbau ist im GitHub-Projektplan in einzelne Issues gegliedert.
 
+## Projekthandbuch
+
+Das [Projekthandbuch](docs/projekthandbuch.adoc) beschreibt Architektur, Datenmodell,
+Einrichtung, API, Anmeldung, Tests und den Ablauf der Vorführung. Die drei
+PlantUML-Quelldateien liegen in [`docs/diagramme`](docs/diagramme/).
+
+Für den HTML-Build werden zusätzlich Java, [Graphviz](https://graphviz.org/download/)
+mit `dot` im `PATH`, die [PlantUML-JAR](https://plantuml.com/download) und
+[Asciidoctor.js](https://docs.asciidoctor.org/asciidoctor.js/latest/setup/install/)
+benötigt. Asciidoctor einmalig in den ignorierten Berichtsordner installieren
+und den Pfad zur heruntergeladenen JAR setzen.
+
+```powershell
+npm install --prefix reports/docs-tools --no-save --package-lock=false @asciidoctor/core@4.0.6
+$env:PLANTUML_JAR = 'C:\Tools\plantuml.jar'
+node scripts/build-docs.mjs
+```
+
+Der Build läuft nach der Einrichtung lokal und erzeugt `reports/docs/projekthandbuch.html`
+und die drei SVG-Dateien unter `reports/docs/diagramme`. Zum Weitergeben den gesamten
+Ordner `reports/docs` kopieren. Eine vorhandene Asciidoctor.js-Installation lässt sich
+über `ASCIIDOCTOR_PACKAGE` einbinden. Der Wert muss auf den Ordner `@asciidoctor/core`
+zeigen, der dessen `package.json` enthält.
+
 ## Voraussetzungen
 
 - Node.js `^24.0.0`

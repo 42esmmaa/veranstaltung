@@ -1,0 +1,18 @@
+@startuml
+top to bottom direction
+skinparam shadowing false
+
+actor "API-Nutzer" as Leser
+actor "Veranstalter" as Veranstalter
+rectangle "Client\nBruno, PowerShell oder eigene Anwendung" as Client
+rectangle "Veranstaltungs-API\nHono auf Node.js" as API
+rectangle "Keycloak\nRealm veranstaltung" as Keycloak
+database "PostgreSQL\nSchema veranstaltung" as Datenbank
+
+Leser --> Client : Veranstaltungen lesen
+Veranstalter --> Client : Eigene Veranstaltungen\nverwalten
+Client --> API : REST oder GraphQL\nBearer-Token für Schreibzugriffe
+Client --> Keycloak : Anmeldung per Gerätefluss\nund Abruf des Access-Tokens
+API --> Keycloak : Öffentliche Signaturschlüssel (JWKS)
+API --> Datenbank : Lesen und Schreiben mit Drizzle
+@enduml

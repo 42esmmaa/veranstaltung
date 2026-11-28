@@ -1,0 +1,183 @@
+= Projekthandbuch Veranstaltungs-API
+:lang: de
+:toc: auto
+:toc-title: Inhalt
+:sectnums:
+:imagesdir: diagramme
+:repo: https://github.com/42esmmaa/veranstaltung
+
+Die Veranstaltungs-API verwaltet Veranstaltungen, ihre Orte und Ticketangebote. Interessierte suchen und lesen öffentliche Einträge. Angemeldete Veranstalter legen Einträge an und bearbeiten ihre eigenen Veranstaltungen.
+
+== Architektur
+
+=== Systemübersicht
+
+image::systemuebersicht.svg[Systemübersicht mit API-Clients, Hono, Keycloak und PostgreSQL]
+
+Die TypeScript-Anwendung läuft auf Node.js und stellt REST sowie GraphQL bereit. PostgreSQL speichert die Fachdaten. Keycloak stellt Access-Tokens aus. Die API prüft sie lokal mit den öffentlichen Signaturschlüsseln des Realms. Der Client meldet sich direkt bei Keycloak an und sendet das Token bei Schreibanfragen an die API.
+
+=== Komponenten der API
+
+image::komponenten.svg[Komponenten und Abhängigkeiten der Veranstaltungs-API]
+
+[cols="1,3",options="header"]
+|===
+|Baustein |Aufgabe
+|`src/app.mts`, `src/index.mts` |HTTP-Server starten, REST und GraphQL anbinden, REST-Fehler zentral behandeln.
+|`src/veranstaltung/router` |REST-Pfade, HTTP-Statuscodes, Seiteneinteilung und bedingte Anfragen behandeln.
+|`src/veranstaltung/graphql` |GraphQL-Schema und Resolver mit Yoga bereitstellen.
+|`src/veranstaltung/validation`, `src/veranstaltung/service` |Eingaben mit Zod prüfen und Suche, Änderungen sowie Versionsprüfung umsetzen.
+|`src/auth.ts`, `src/db/ownership.ts` |Tokens und Veranstalterrolle prüfen sowie Schreiboperationen auf eigene Einträge begrenzen.
+|`src/db`, `drizzle` |PostgreSQL-Verbindung, Schema, Relationen und versionierte Migrationen bereitstellen.
+|`src/logger` |Anfragen mit Request-ID, Status und Dauer in strukturierten Pino-Logs erfassen.
+|===
+
+=== Datenmodell
+
+image::datenmodell.svg[ER-Diagramm für Veranstaltungen, Orte und Tickets]
+
+Eine Veranstaltung hat höchstens einen Ort und beliebig viele Tickets. Jeder Ort und jedes Ticket gehört genau einer Veranstaltung. Ein eindeutiger Fremdschlüssel erzwingt die 1:1-Beziehung zum Ort. Beim Löschen einer Veranstaltung entfernt PostgreSQL die zugehörigen Orte und Tickets. Die `veranstalter_id` entspricht dem `sub`-Claim des Access-Tokens. Die `version` schützt Aktualisierungen vor dem Überschreiben zwischenzeitlicher Änderungen. Zeitpunkte werden mit Zeitzone gespeichert und in UTC ausgegeben. Preise sind Dezimalstrings an der API-Grenze.
+
+== Lokal starten und konfigurieren
+
+Vorausgesetzt werden Node.js 24, pnpm 12.19.0 und ein laufendes Docker Desktop. Die Befehle werden in PowerShell im Repository ausgeführt. Die `.env` beim ersten Start aus der Vorlage kopieren. Eine vorhandene `.env` beibehalten und fehlende Werte ergänzen.
+
+[source,powershell]
+----
+pnpm install --frozen-lockfile
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+docker compose up -d --wait postgres
+pnpm db:migrate
+pnpm dev
+----
+
+In einer zweiten PowerShell prüft `Invoke-RestMethod http://127.0.0.1:3000/health` den HTTP-Start. Der Endpunkt meldet `status: ok`. Eine Abfrage an `/veranstaltungen` prüft zusätzlich, ob die Anwendung die Datenbank abfragen kann. Der App-Port lässt sich über `PORT` ändern.
+
+[cols="1,3",options="header"]
+|===
+|Variable |Zweck
+|`DATABASE_URL` |PostgreSQL-Verbindung für den Start auf dem Host und die lokalen Migrationen.
+|`DOCKER_DATABASE_URL` |Verbindung für das Compose-Profil `app` über `postgres:5432`.
+|`OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL` |Gemeinsam konfigurieren, um authentifizierte Schreibzugriffe zu aktivieren.
+|`OIDC_ALLOW_LOOPBACK_HTTP` |Erlaubt mit `true` lokale HTTP-Verbindungen zu Keycloak unter `127.0.0.1`. Reguläre Umgebungen verwenden HTTPS für Issuer und JWKS.
+|`KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` |Lokale Zugangsdaten für die erste Einrichtung von Keycloak.
+|`LOG_LEVEL` |Mindeststufe der Pino-Logs, standardmäßig `info`.
+|===
+
+Alternativ startet `docker compose --profile app up -d --build --wait` PostgreSQL und die API im Container. Der Dienst `migrate` wendet vor dem Appstart die Migrationen an. Für die lokale Anmeldung mit Keycloak per Loopback-HTTP die API wie oben auf dem Host starten.
+
+== Authentifizierung
+
+Für die lokale Anmeldung folgende Werte in `.env` setzen und eigene Bootstrap-Zugangsdaten eintragen.
+
+[source,ini]
+----
+OIDC_ISSUER=http://127.0.0.1:8080/realms/veranstaltung
+OIDC_AUDIENCE=veranstaltungs-api
+OIDC_JWKS_URL=http://127.0.0.1:8080/realms/veranstaltung/protocol/openid-connect/certs
+OIDC_ALLOW_LOOPBACK_HTTP=true
+----
+
+Mit `docker compose --profile oidc up -d postgres keycloak` Keycloak starten. Die API nach einer Konfigurationsänderung neu starten. In der Keycloak-Konsole unter `http://127.0.0.1:8080/admin/` den Realm `veranstaltung` wählen, einen Testnutzer mit Passwort anlegen und ihm die Realm-Rolle `veranstalter` zuweisen. Für den Eigentümertest einen zweiten Nutzer mit derselben Rolle anlegen. Der vorinstallierte öffentliche Client `veranstaltungs-cli` verwendet den Gerätefluss. Bei älteren Realm-Importen den Default-Client-Scope `basic` ergänzen, falls das Token keinen `sub`-Claim enthält.
+
+[source,powershell]
+----
+$oidc = 'http://127.0.0.1:8080/realms/veranstaltung/protocol/openid-connect'
+$device = Invoke-RestMethod -Method Post -Uri "$oidc/auth/device" -Body @{
+  client_id = 'veranstaltungs-cli'
+}
+Start-Process $device.verification_uri_complete
+----
+
+Im Browser anmelden und den angezeigten Code bestätigen. Danach in derselben PowerShell das Token abrufen. Bei `authorization_pending` mindestens `$device.interval` Sekunden bis zum nächsten Versuch warten.
+
+[source,powershell]
+----
+$token = Invoke-RestMethod -Method Post -Uri "$oidc/token" -Body @{
+  grant_type = 'urn:ietf:params:oauth:grant-type:device_code'
+  client_id = 'veranstaltungs-cli'
+  device_code = $device.device_code
+}
+$headers = @{ Authorization = "Bearer $($token.access_token)" }
+----
+
+Die API prüft Signatur, Issuer, Audience und Gültigkeit des Tokens sowie die Rolle `veranstalter`. Bei Schreibzugriffen auf bestehende Daten wird auch die Eigentümerschaft geprüft. Lesezugriffe bleiben öffentlich. Ohne OIDC-Konfiguration sind Schreibzugriffe deaktiviert.
+
+== Schnittstellen
+
+=== REST
+
+[cols="1,2,2",options="header"]
+|===
+|Methode |Pfad |Verhalten
+|GET |`/veranstaltungen` |Nach `q`, `kategorie`, `ab` oder `schlagwort` suchen. `page` beginnt bei 1. `size` ist standardmäßig 5.
+|POST |`/veranstaltungen` |Veranstaltung anlegen. Antwort `201` mit `Location` und `ETag`.
+|GET, PUT, DELETE |`/veranstaltungen/:id` |Veranstaltung lesen, ersetzen oder löschen.
+|GET, PUT, DELETE |`/veranstaltungen/:id/ort` |Ort lesen, anlegen beziehungsweise ersetzen oder löschen.
+|GET, POST |`/veranstaltungen/:id/tickets` |Tickets auflisten oder ein Ticket anlegen.
+|GET, PUT, DELETE |`/veranstaltungen/:id/tickets/:ticketId` |Ein Ticket lesen, ersetzen oder löschen.
+|===
+
+Beim Lesen einer einzelnen Veranstaltung liefert ein passender `If-None-Match`-Header den Status `304`. Zum Ersetzen einer Veranstaltung muss `If-Match` den zuletzt gelesenen `ETag` enthalten. Ein fehlender Header ergibt `428`, eine veraltete Version `412`. REST-Fehler verwenden `application/problem+json`. Ein fehlendes oder ungültiges Token ergibt `401`, eine fehlende Rolle `403`. Bei Schreibzugriffen auf fremde oder fehlende Einträge liefert die API `404`.
+
+=== GraphQL
+
+`POST /graphql` bietet die öffentlichen Abfragen `veranstaltung` und `veranstaltungen` an. Die Ergebnisse können Ort und Tickets als verschachtelte Felder enthalten. `create`, `update` und `delete` bearbeiten Veranstaltungen. Eigene Mutationen ändern Ort und Tickets. Bearer-Token, Rollen und Eigentümerschaft gelten wie bei REST. `update` nimmt die erwartete `version` entgegen. Fehler stehen im Feld `errors`, beispielsweise `UNAUTHENTICATED`, `FORBIDDEN` oder `CONFLICT`.
+
+[source,powershell]
+----
+$body = @{ query = '{ veranstaltungen(input: { limit: 5 }) { id titel ort { stadt } tickets(limit: 3) { bezeichnung } } }' } |
+  ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3000/graphql' `
+  -ContentType 'application/json' -Body $body
+----
+
+Das {repo}/blob/HEAD/src/veranstaltung/graphql/schema.ts[GraphQL-Schema] enthält alle Operationen, Felder und Eingabetypen. Weitere API-Beispiele stehen im {repo}/blob/HEAD/README.md#rest-api[README].
+
+== Tests und Qualitätssicherung
+
+[cols="1,3",options="header"]
+|===
+|Befehl |Prüfung und Voraussetzungen
+|`pnpm fmt:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` |Formatierung, statische Analyse, Typen und Übersetzung. Diese Befehle brauchen keine laufenden Dienste.
+|`pnpm test` |Vitest prüft unter anderem Validierung, Authentifizierung, Fehlerfälle und Logging ohne laufende Dienste.
+|`pnpm test:db` |Integrationstests mit PostgreSQL für REST, GraphQL, Relationen und Eigentümerschaft. `DATABASE_URL` in der Shell auf eine separate Testdatenbank setzen und vorher `pnpm db:migrate` ausführen.
+|`pnpm test:bruno` |HTTP-Collection mit laufender API und Testdatenbank. `BRUNO_ACCESS_TOKEN` in der Shell setzen und nach dem Lauf entfernen.
+|`pnpm k6` |Lasttest gegen eine lokale API mit separater Testdatenbank. k6 installieren und `K6_BASE_URL` sowie `K6_ACCESS_TOKEN` setzen.
+|`pnpm dependency-check` |OWASP-Bericht für Abhängigkeiten. Docker und Netzwerkzugang werden benötigt.
+|===
+
+GitHub Actions führt Formatprüfung, Lint, Typprüfung, Build, Unit-Tests und die Datenbanktests gegen eine eigene PostgreSQL-Instanz aus. Die Keycloak-Anmeldung wird separat am laufenden System vorgeführt.
+
+== Ablauf für die Vorführung
+
+. PostgreSQL, Keycloak und die API lokal starten. `/health` und anschließend `GET /veranstaltungen` im Browser oder in Bruno aufrufen.
+. Als Test-Veranstalter über den Gerätefluss anmelden. In derselben PowerShell eine Veranstaltung anlegen und den `Location`-Header verwenden, um den Datensatz zu lesen.
++
+[source,powershell]
+----
+$created = Invoke-WebRequest -Method Post -Uri 'http://127.0.0.1:3000/veranstaltungen' `
+  -Headers $headers -ContentType 'application/json' `
+  -Body '{"titel":"Jazzabend","datum":"2027-02-01T19:00:00+01:00","kategorie":"KONZERT","preis":"12.50"}'
+$url = [string]$created.Headers.Location
+$event = Invoke-RestMethod -Uri $url
+$event
+----
+. Dieselbe Veranstaltung über GraphQL lesen. Für die bedingten REST-Anfragen in Bruno den Ordner `02-rest` in Reihenfolge ausführen und die Antworten der Requests `03-Cache-ETag` (`304`) und `05-Veraltete-Version` (`412`) zeigen.
++
+[source,powershell]
+----
+$body = @{
+  query = 'query($id: ID!) { veranstaltung(id: $id) { id titel version } }'
+  variables = @{ id = [string]$event.id }
+} | ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:3000/graphql' `
+  -ContentType 'application/json' -Body $body
+----
+. Optional als zweiter Veranstalter anmelden und versuchen, die erste Veranstaltung zu löschen. Erwartet wird `404`. Danach die Demo-Veranstaltung mit dem ursprünglichen Token aufräumen.
++
+[source,powershell]
+----
+Invoke-WebRequest -Method Delete -Uri $url -Headers $headers
+----
+. Für die Abgabe das Projekthandbuch nach der Build-Anleitung im {repo}/blob/HEAD/README.md#projekthandbuch[README] erzeugen. Zum Weitergeben der HTML-Version den Ordner `reports/docs` mit der HTML-Datei und den Diagrammen zusammen kopieren.

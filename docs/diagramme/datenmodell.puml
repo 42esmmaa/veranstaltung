@@ -1,0 +1,42 @@
+@startuml
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+
+entity "veranstaltung" as Veranstaltung {
+  * id : integer <<PK>>
+  --
+  * version : integer
+  * titel : text
+  * datum : timestamptz
+  * kategorie : enum
+  * schlagwoerter : jsonb
+  * preis : numeric(8,2)
+  * veranstalter_id : text
+  * erstellt : timestamptz
+  * aktualisiert : timestamptz
+}
+
+entity "ort" as Ort {
+  * id : integer <<PK>>
+  --
+  * veranstaltung_id : integer <<FK, UNIQUE>>
+  * name : text
+  * strasse : text
+  * plz : text
+  * stadt : text
+}
+
+entity "ticket" as Ticket {
+  * id : integer <<PK>>
+  --
+  * veranstaltung_id : integer <<FK>>
+  * bezeichnung : text
+  * preis : numeric(8,2)
+  * kontingent : integer
+  * aktiv : boolean
+}
+
+Veranstaltung ||--o| Ort
+Veranstaltung ||--o{ Ticket
+@enduml

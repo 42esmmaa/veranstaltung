@@ -1,0 +1,34 @@
+@startuml
+top to bottom direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+package "Veranstaltungs-API" {
+  [Hono-App\nRouting und Fehlerbehandlung] as App
+  [Request-Logging\nund Zeitmessung] as Logging
+  [REST-Router] as REST
+  [GraphQL Yoga\nResolver] as GraphQL
+  [Tokenprüfung\nmit jose] as Auth
+  [Zod-Schemas] as Validation
+  [Veranstaltungsservices\nLesen und Schreiben] as Service
+  [Eigentümerfilter] as Ownership
+  [Drizzle-Datenzugriff] as Drizzle
+}
+
+database PostgreSQL as DB
+rectangle "Keycloak JWKS" as JWKS
+
+App --> Logging
+App --> REST
+App --> GraphQL
+App --> Auth : REST-Schreibzugriffe
+GraphQL --> Auth : Mutationen
+REST --> Validation
+GraphQL --> Validation
+REST --> Service
+GraphQL --> Service
+Service --> Ownership : Schreiboperationen
+Service --> Drizzle
+Drizzle --> DB
+Auth --> JWKS
+@enduml
