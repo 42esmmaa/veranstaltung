@@ -12,7 +12,7 @@
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "test": "vitest run test/unit.test.ts",
+    "test": "vitest run test/unit.test.ts test/metrics.test.ts",
     "test:db": "vitest run test/database.test.ts",
     "test:bruno": "pnpm --dir test/bruno exec bru run --env local -r --bail",
     "k6": "k6 run test/lasttest/script.ts",

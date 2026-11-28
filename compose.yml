@@ -1,6 +1,6 @@
 services:
   app:
-    profiles: [app]
+    profiles: [app, monitoring]
     build:
       context: .
       target: final
@@ -10,6 +10,7 @@ services:
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
       OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
@@ -19,7 +20,7 @@ services:
     cap_drop: [ALL]
 
   migrate:
-    profiles: [app]
+    profiles: [app, monitoring]
     build:
       context: .
       target: migration
@@ -59,6 +60,45 @@ services:
       - ./keycloak/veranstaltung-realm.json:/opt/keycloak/data/import/veranstaltung-realm.json:ro
       - veranstaltung_keycloak_data:/opt/keycloak/data
 
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    profiles: [monitoring]
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - veranstaltung_prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:13.2.5
+    profiles: [monitoring]
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - veranstaltung_grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   veranstaltung_postgres_data:
   veranstaltung_keycloak_data:
+  veranstaltung_prometheus_data:
+  veranstaltung_grafana_data:

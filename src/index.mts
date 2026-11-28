@@ -27,7 +27,7 @@ const verify =
         keycloakOrganizerRole: 'veranstalter',
       })
     : undefined;
-const app = createApp(db, verify);
+const app = createApp(db, verify, undefined, process.env['METRICS_ENABLED'] === 'true');
 
 serve({ fetch: app.fetch, port }, (info) => {
   getLogger('index').info(

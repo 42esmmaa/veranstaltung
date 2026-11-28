@@ -149,6 +149,10 @@ Das {repo}/blob/HEAD/src/veranstaltung/graphql/schema.ts[GraphQL-Schema] enthäl
 
 GitHub Actions führt Formatprüfung, Lint, Typprüfung, Build, Unit-Tests und die Datenbanktests gegen eine eigene PostgreSQL-Instanz aus. Die Keycloak-Anmeldung wird separat am laufenden System vorgeführt.
 
+=== Monitoring
+
+`docker compose --profile monitoring up -d --build --wait` startet zusätzlich Prometheus und Grafana. Prometheus liest die HTTP-Metriken der API unter `/metrics`. Das vorkonfigurierte Grafana-Dashboard unter `http://127.0.0.1:3001/d/veranstaltungs-api/veranstaltungs-api` zeigt Erreichbarkeit, Anfrageraten, Statusklassen, HTTP-Serverfehler und p95 der Antwortzeit je Route. Einrichtung und Anmeldung stehen im {repo}/blob/HEAD/README.md#monitoring-mit-prometheus-und-grafana[README].
+
 == Ablauf für die Vorführung
 
 . PostgreSQL, Keycloak und die API lokal starten. `/health` und anschließend `GET /veranstaltungen` im Browser oder in Bruno aufrufen.

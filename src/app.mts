@@ -7,6 +7,7 @@ import type { db } from './db/client.js';
 import { getLogger, type LoggingVariables } from './logger/logger.mts';
 import { requestLogger } from './logger/request-logger.mts';
 import { responseTime } from './logger/response-time.mts';
+import { createMetrics } from './monitoring/metrics.mts';
 import { createProblemDetails } from './problem-details.mts';
 import { createGraphqlApp } from './veranstaltung/graphql/graphql-app.js';
 import { ValidationError } from './veranstaltung/router/input.mts';
@@ -25,10 +26,15 @@ export function createApp(
   database: typeof db,
   verify?: AccessTokenVerifier,
   logger: Logger = getLogger('app'),
+  metricsEnabled = false,
 ) {
   const app = new Hono<{ Variables: LoggingVariables & { organizer: Organizer } }>();
   app.use('*', requestLogger(logger), responseTime);
-
+  if (metricsEnabled) {
+    const metrics = createMetrics();
+    app.use('*', metrics.track);
+    app.get('/metrics', metrics.scrape);
+  }
   app.use('/veranstaltungen/*', async (c, next) => {
     if (['POST', 'PUT', 'DELETE'].includes(c.req.method)) {
       if (!verify) {

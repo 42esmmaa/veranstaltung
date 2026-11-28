@@ -264,6 +264,48 @@ frischer Datenbank und geringer Last ist ein reproduzierbarer Einstieg, keine Au
 über Produktionskapazität, große Datenbestände oder das Verhalten über längere Zeit.
 Der Lasttest wird separat gestartet und ist kein Bestandteil des normalen CI-Laufs.
 
+## Monitoring mit Prometheus und Grafana
+
+Das Compose-Profil `monitoring` startet PostgreSQL, Migrationen, die API,
+Prometheus und Grafana. Setze `DOCKER_DATABASE_URL` in `.env` wie im Abschnitt
+[Appserver mit Docker Compose](#appserver-und-postgresql-mit-docker-compose) beschrieben.
+In der lokalen `.env` kann `GRAFANA_ADMIN_PASSWORD`
+vor dem ersten Start gesetzt werden. Grafana übernimmt diesen Wert beim
+Anlegen des Admin-Kontos im Grafana-Volume.
+
+```powershell
+docker compose --profile monitoring up -d --build --wait
+```
+
+1. [Grafana auf Port 3001](http://127.0.0.1:3001/d/veranstaltungs-api/veranstaltungs-api)
+   öffnen und als `admin` mit dem gesetzten Passwort anmelden. Ohne gesetztes
+   Passwort gilt beim ersten Start `admin`.
+2. Auf [Prometheus Targets](http://127.0.0.1:9090/targets) prüfen, ob das Ziel
+   `veranstaltungs-api` als `UP` angezeigt wird.
+3. Wiederholt `Invoke-RestMethod http://127.0.0.1:3000/veranstaltungen` ausführen
+   und einige Sekunden warten. Das Dashboard zeigt die Erreichbarkeit aus
+   Prometheus, Anfragen pro Sekunde, Statusklassen, HTTP-Serverfehler und p95
+   der Antwortzeit je Route.
+
+`GRAFANA_PORT` und `PROMETHEUS_PORT` ändern die Host-Ports. Beide Oberflächen
+sind nur über Loopback am Host erreichbar. Prometheus ruft alle fünf Sekunden
+`http://app:3000/metrics` im Compose-Netz ab. Compose aktiviert die Metriken
+standardmäßig. Beim Start auf dem Host aktiviert `METRICS_ENABLED=true` den
+Endpunkt. Bei veröffentlichten APIs den Zugriff auf `/metrics` am Proxy auf
+Prometheus beschränken oder die Metriken deaktivieren.
+
+Die Metriken verwenden registrierte Routenmuster und enthalten keine konkreten
+IDs, Query-Parameter oder Zugangsdaten. `/metrics` und `/health` gehen nicht in
+die Diagramme für Anfragen und Antwortzeiten ein. Die Statusklassen beziehen
+sich auf HTTP. GraphQL-Fehler im Antwortkörper bei HTTP 200 stehen in den Pino-Logs.
+
+```powershell
+docker compose --profile monitoring down
+```
+
+Prometheus-Daten und Grafana-Einstellungen bleiben in ihren benannten Volumes
+erhalten. Datenquelle und Dashboard werden aus `monitoring/` provisioniert.
+
 ## Pino-Logging
 
 Wie in der Dozentenvorlage liegen `getLogger`, Request-Middleware und Zeitmessung
