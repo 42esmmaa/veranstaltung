@@ -16,6 +16,7 @@
     "test:db": "vitest run test/database.test.ts",
     "test:bruno": "pnpm --dir test/bruno exec bru run --env local -r --bail",
     "k6": "k6 run test/lasttest/script.ts",
+    "dependency-check": "node --import tsx scripts/dependency-check.mts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

@@ -273,8 +273,81 @@ unterschiedliche Request-IDs, Laufzeiten und den Ausschluss sensibler Testwerte
 aus Headern, URL, Body und Fehlermeldungen. Zusätzlich wurden Image-Build, Start
 und JSON-Logs unter Node.js 24 im isolierten Compose-Appcontainer geprüft:
 Request-IDs und Status stimmten überein, sensible Testwerte fehlten in den Logs.
-OWASP Dependency Check folgt als
-separater Arbeitsschritt; Pino ersetzt keine Prüfung der Abhängigkeiten.
+Die Abhängigkeitsprüfung ist im folgenden Abschnitt beschrieben.
+
+## OWASP Dependency Check
+
+Wie die Dozentenvorlage verwendet das Projekt einen Starter unter
+`scripts/dependency-check.mts`. Er startet das offizielle Image
+`owasp/dependency-check:13.0.0`; Docker muss laufen, eine lokale Java-Installation
+ist nicht erforderlich. Der Scan benötigt eine Internetverbindung. Start:
+
+```powershell
+pnpm dependency-check
+```
+
+Der [Pnpm Audit Analyzer](https://dependency-check.github.io/DependencyCheck/analyzers/index.html)
+prüft das bestehende `pnpm-lock.yaml` einschließlich Entwicklungsabhängigkeiten.
+Der Starter kopiert nur `package.json`, `pnpm-lock.yaml` und `pnpm-workspace.yaml`
+in den ignorierten Berichtsordner und bindet diese Kopien lesend in den Container ein.
+Quellcode, `.env`, Zugangsdaten und die laufende Datenbank werden nicht eingebunden.
+Eine zusätzliche npm-Installation oder ein zweites Lockfile sind nicht nötig.
+
+Ohne API-Key verwendet der Starter den öffentlichen NVD-Datenfeed des OWASP-Projekts.
+Das umgeht den [bestätigten Fehler von Version 13.0.0 bei einem leeren API-Key](https://github.com/dependency-check/DependencyCheck/issues/8715).
+Der erste Datenabgleich lädt den vollständigen Bestand; das eigene Docker-Volume
+`veranstaltung_dependency_check_13_data` bleibt anschließend als Cache erhalten.
+Folgeläufe prüfen wieder auf Aktualisierungen und verwenden innerhalb der
+Gültigkeitsfrist den Cache. Der Bericht zeigt unter `scanInfo.dataSource`, wann
+die Quelldaten zuletzt geprüft und geändert wurden.
+
+Optional kann ein eigener NVD-API-Key als lokale Umgebungsvariable `NVD_API_KEY`
+gesetzt werden. Dann verwendet der Scan die NVD-API. Der Starter reicht nur den
+Variablennamen an Docker weiter; der Schlüssel wird im Container in eine temporäre
+Properties-Datei geschrieben und nicht als Kommandoargument ausgegeben. Ohne Key
+ist keine zusätzliche Konfiguration nötig. Sonatype OSS Index ist deaktiviert,
+weil dafür zusätzliche Zugangsdaten erforderlich wären; RetireJS ist deaktiviert,
+weil nur das Lockfile und keine JavaScript-Bundles gescannt werden.
+
+Die aktuellen Berichte liegen unter:
+
+- `reports/dependency-check/dependency-check-report.html` für die Ansicht im Browser.
+- `reports/dependency-check/dependency-check-report.json` für die maschinelle Auswertung.
+
+Vor einem Lauf werden die beiden alten Berichte entfernt. Fehlt danach ein
+auswertbarer JSON-Bericht, ist die Prüfung fehlgeschlagen. `reports/` ist von Git
+ausgeschlossen. Das Scan-Volume ist kein Anwendungs- oder Datenbankvolume und wird
+nicht mit den Compose-Diensten entfernt.
+
+Der Prozess schlägt bei CVSS ab 7 sowie Registry-Einstufung `high` oder `critical`
+fehl. Die zusätzliche Auswertung der Schweregrade ist nötig, weil nicht jede
+Registry-Meldung einen numerischen CVSS-Wert enthält. Auch Update-, Netzwerk- und
+Analysefehler bleiben Fehler; sie werden nicht als erfolgreicher Scan gewertet.
+Dieser gesonderte Sicherheitscheck ist kein Bestandteil des normalen CI-Workflows.
+
+Am 28.11.2026 wurden der vollständige Erstlauf ohne API-Key und ein Folgelauf mit
+Cache geprüft. Beide erzeugten HTML und JSON. Der Folgelauf meldete **7 Hinweise:
+2 high und 5 moderate** und lieferte wegen der hohen Funde erwartungsgemäß Exitcode 15.
+Der verwendete NVD-Datenstand war vom 27.11.2026. Gefunden wurden:
+
+| Paket | Einstufung | Advisory |
+|---|---|---|
+| `zod` | high | [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) |
+| `@faker-js/faker` | high | [GHSA-qxc2-j82w-r537](https://github.com/advisories/GHSA-qxc2-j82w-r537) |
+| `@hono/node-server` | moderate | [GHSA-rmxm-3fg6-px4f](https://github.com/advisories/GHSA-rmxm-3fg6-px4f) |
+| `csv-parse` | moderate | [GHSA-8cw4-87c7-c6xx](https://github.com/advisories/GHSA-8cw4-87c7-c6xx) |
+| `glob` | moderate | [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) |
+| `minimatch` | moderate | [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) |
+| `uuid` | moderate | [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) |
+
+Die Funde sind noch offen. Zod und der Hono-Node-Adapter gehören zur Anwendung;
+die übrigen gemeldeten Pakete stammen aus der Bruno-CLI. Zur Auswertung die
+Advisory-ID, betroffene Funktion und den Abhängigkeitspfad prüfen, beispielsweise
+mit `pnpm why zod` und `pnpm audit --json`. Der Analyzer-Bericht enthält nicht bei
+jedem indirekten Paket die installierte Version; dafür das Lockfile und die
+pnpm-Ausgabe hinzuziehen. Updates anschließend gezielt durchführen und die
+Projektprüfungen sowie den Scan erneut starten. Für diese Funde wurden keine
+Suppressions oder automatischen Fixes übernommen.
 
 ## Datenmodell
 
